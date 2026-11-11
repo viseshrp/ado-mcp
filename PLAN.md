@@ -18,6 +18,9 @@ Plans (5), Wiki (2), Search (3), and Advanced Security (2).
 client, authentication, and tools have not been implemented. The inventory
 below records the upstream tool names, actions, and REST route families to make
 the future implementation scope explicit.
+A bounded, read-only route sweep against one on-premises collection is now
+recorded below. It provides instance-specific evidence for the exercised
+read routes, not write support or a guarantee for other server versions.
 
 ## Product and parity decisions
 
@@ -396,6 +399,60 @@ records the additional SDK-internal discovery requests. The Python collection
 client must either reproduce the relevant discovery behavior or replace it
 with explicit collection-local routes and equivalent compatibility tests.
 
+## Live read-only route sweep
+
+The following probes used the configured collection and `ADO_PAT` from the
+local `.env`, sent as Basic authentication. This plan intentionally omits the
+host, PAT, project and record identifiers, identity values, response contents,
+and result counts. Redirects were not followed, and response bodies were
+bounded and not printed or persisted. No request was sent to an Azure DevOps
+Services host.
+
+Only `GET`, `OPTIONS`, and POST operations whose upstream semantics are
+read-only queries were used: WIT batch read/WIQL, PR query, Search queries, and
+Wiki `pagesbatch`. No create/update/delete, pipeline queue, or other mutating
+endpoint was called; no `PATCH`, `PUT`, or `DELETE` request was sent.
+
+| Area/action | Exact route and upstream API version | Live result |
+|---|---|---|
+| SDK location discovery | `OPTIONS C/_apis/Location`; `GET C/_apis/resourceAreas?api-version=7.2-preview.1` | Both returned HTTP 200. The collection returned the previously recorded empty resource-area representation. |
+| SDK area discovery | `OPTIONS C/_apis/{area}` for `Test`, `build`, `core`, `git`, `pipelines`, `testplan`, `testresults`, `wiki`, `wit`, `work`, and `Alert` | All returned HTTP 200. `Alert` exposed no resource locations, so the Advanced Security routes remain unavailable through SDK discovery. |
+| Projects, teams, connection data, identity | `GET C/_apis/projects` (`7.2-preview.4`); `GET C/_apis/projects/{P}/teams` (`7.2-preview.3`); `GET C/_apis/connectionData` (no explicit version); collection-local `GET C/_apis/identities` (`7.2-preview.1`) with the current-user identity filter | All returned HTTP 200 with JSON responses. This verifies the collection-local identity candidate; do not call the upstream cloud-only VSSPS route. |
+| Iteration tree and team settings | `GET C/{P}/_apis/wit/classificationnodes/Iterations` (`7.1-preview.2`); `GET C/{P}/{T}/_apis/work/teamsettings/iterations` (`7.2-preview.1`); `GET .../teamsettings` and `GET .../teamsettings/teamfieldvalues` (both `7.2-preview.1`); `GET .../teamsettings/iterations/{I}/workitems` (`7.2-preview.1`) | All returned HTTP 200 with JSON responses. |
+| Team iteration capacity | `GET C/{P}/{T}/_apis/work/teamsettings/iterations/{I}/capacities?api-version=7.2-preview.3` | HTTP 200 with a JSON response for a returned team iteration. |
+| All-team iteration capacity | `GET C/{P}/_apis/work/iterations/{I}/capacities?api-version=7.2-preview.1`, using iteration identifiers returned by both the iteration tree and team-iteration listing | HTTP 404 for the tested identifiers. This exact operation is not confirmed on this instance; do not infer support from team-capacity success. |
+| Work-item detail, relations, batch, comments, revisions, and type | `GET C/{P}/_apis/wit/workItems/{W}` and collection-scoped `GET C/_apis/wit/workItems/{W}` (both `7.1-preview.3`); detail with `$expand=Relations` (`7.1-preview.3`); read-only `POST C/{P}/_apis/wit/workitemsbatch` (`7.1-preview.1`); `GET .../comments` and `GET .../revisions` (both `7.1-preview.3`); `GET .../workitemtypes/{type}` (`7.1-preview.2`) | Every request returned HTTP 200 with a JSON response. |
+| Predefined work-item queries | `GET C/{P}/_apis/work/predefinedqueries/assignedtome` and `.../myactivity` (both `7.2-preview.1`) | Both returned HTTP 200 with JSON responses. |
+| Saved query and query results | `GET C/{P}/_apis/wit/queries` (`7.1-preview.2`, bounded depth); `GET .../queries/{queryId}` and `GET .../wiql/{queryId}` (both `7.1-preview.2`) | All returned HTTP 200. The initial deeper query-tree response exceeded the response bound; a depth-one listing supplied a query fixture, and both dependent routes returned JSON responses. |
+| WIQL | Read-only `POST C/{P}/_apis/wit/wiql` (`7.1-preview.2`) with a query limited to the supplied sample work item | HTTP 200 with a JSON response. |
+| Backlogs | `GET C/{P}/{T}/_apis/work/backlogs` and `GET .../backlogs/{backlogId}/workItems` (both `7.2-preview.1`) | Both returned HTTP 200 with JSON responses. |
+| Work-item attachment download | `GET C/{P?}/_apis/wit/attachments/{attachmentId}` (`7.1-preview.3`) | Not testable with the selected work-item fixture: it had no attached-file relation. No other attachment was searched for or downloaded. |
+| Repositories | `GET C/{P}/_apis/git/repositories` (`7.2-preview.2`) | HTTP 200 with a JSON response. |
+| Branch list, list-mine, and get | `GET GIT(P,R)/refs` (`7.2-preview.2`), using `filter=heads/`; `includeMyBranches=true`; and the SDK's `filterContains` lookup for a returned branch | All exact SDK call shapes returned HTTP 200 with JSON responses. A preliminary probe added unsupported `$top` to the refs query and returned 400; it was discarded, and the SDK-shaped request without `$top` succeeded. |
+| Pull-request list and organization-wide list | `GET GIT(P,R)/pullRequests` and `GET C/{P}/_apis/git/pullRequests` (`7.2-preview.2`); `GET C/_apis/git/pullRequests` (`7.1`) | All returned HTTP 200 with JSON responses. The detail fixture was obtained from a completed PR, not the default active-only query. Pagination behavior was not exhaustively tested. |
+| Pull-request detail and changed files | `GET GIT(P,R)/pullRequests/{PR}` (`7.2-preview.2`); `GET .../labels` (`7.2-preview.1`); `GET .../iterations` (`7.2-preview.2`); `GET .../iterations/{iterationId}/changes` (`7.2-preview.1`) | All returned HTTP 200 with JSON responses. |
+| Pull-request threads and comments | `GET GIT(P,R)/pullRequests/{PR}/threads` and `GET .../threads/{threadId}/comments` (both `7.2-preview.1`) | Both returned HTTP 200 with JSON responses. |
+| Pull-request lookup by commit | Read-only `POST GIT(P,R)/pullRequestQuery` (`7.2-preview.1`) with the upstream query shape and `LastMergeCommit` type | HTTP 201 with a JSON-object response. The route was reached, but the non-200 status is unusual for a query operation; the implementation must handle it deliberately and validate the returned shape. |
+| Repository directory and file content | `GET GIT(P,R)/items` (`7.2-preview.1`), using `scopePath=/`, `recursionLevel=OneLevel`, and `includeContentMetadata=true`; then `GET .../items?path=...&includeContent=true` | Both returned HTTP 200. A preliminary directory probe incorrectly used `path=` instead of the SDK's `scopePath=` and returned 400; the exact SDK-shaped request succeeded. The content response was not printed or persisted. |
+| Code-search result enrichment | For an eligible code-search hit, `GET GIT(P,R)/items` (`7.2-preview.1`) with the hit path, returned commit, and content requested | HTTP 200 with a JSON response containing the item/content fields expected by the enrichment path. Content was not printed or persisted. |
+| Build list, report, and changes | `GET C/{P}/_apis/build/builds` (`7.2-preview.7`); `GET .../builds/{B}/report` and `GET .../builds/{B}/changes` (both `7.2-preview.2`) | All returned HTTP 200 with JSON responses. |
+| Build logs | `GET C/{P}/_apis/build/builds/{B}/logs` and `GET .../logs/{L}` (both `7.2-preview.2`) | Both returned HTTP 200. The bounded log-content response was non-JSON and was not printed or persisted. |
+| Build artifacts | `GET C/{P}/_apis/build/builds/{B}/artifacts` (`7.2-preview.5`), including checks of five recent builds | The list route returned HTTP 200. No artifact was present in the sampled builds, so artifact-detail and dynamic-download routes were not testable; no artifact data was downloaded. |
+| Build definitions and revisions | `GET C/{P}/_apis/build/definitions` (`7.2-preview.7`); `GET .../definitions/{definitionId}/revisions` (`7.2-preview.3`) | Both returned HTTP 200 with JSON responses. |
+| Pipeline list, run list, and run detail | `GET C/{P}/_apis/pipelines` and `GET .../pipelines/{pipelineId}/runs` (both `7.2-preview.1`); `GET .../pipelines/{pipelineId}/runs/{runId}` (`7.2-preview.1`) | All returned HTTP 200. The exact upstream run-list response exceeded the bounded read size; run detail returned a JSON response using a sampled build/run identifier. |
+| Test plans, suites, and cases | `GET C/{P}/_apis/testplan/Plans` and `GET .../Plans/{planId}/Suites` (both `7.2-preview.1`); `GET .../Plans/{planId}/Suites/{suiteId}/TestCase` (`7.2-preview.3`) | All returned HTTP 200 with JSON responses. |
+| Test runs for a build | `GET C/{P}/_apis/test/runs?buildUri=...` (`7.2-preview.1`) for the sampled latest build; the same query at API `6.0` | The upstream-version request returned HTTP 404. API `6.0` returned HTTP 200 with an empty collection for that build, so this build did not provide a matching run fixture. An unfiltered API `6.0` query returned a test-run fixture. |
+| Test results | `GET C/{P}/_apis/test/Runs/{runId}/Results` (`7.2-preview.2` and `6.0`) for the returned test-run fixture | Both versions returned HTTP 200 with JSON responses. This verifies result retrieval, but not a full build-to-run chain for the sampled build. |
+| Wiki list, detail, and page batch | `GET C/{P}/_apis/wiki/wikis` and `GET .../wikis/{wikiId}` (both `7.2-preview.2`); read-only `POST .../wikis/{wikiId}/pagesbatch` (`7.2-preview.1`) | All returned HTTP 200 with JSON responses. |
+| Wiki page and content | `GET C/{P}/_apis/wiki/wikis/{wikiId}/pages?path=...` and `GET .../pages?path=...&includeContent=true` (`7.2-preview.1`); `GET .../pages/{pageId}?includeContent=true` (`7.1`) | All returned HTTP 200 with JSON responses. |
+| Code, Wiki, and work-item Search | Read-only `POST C/_apis/search/codesearchresults`, `.../wikisearchresults`, and `.../workitemsearchresults` (all `7.2-preview.1`) with bounded results and a project filter | All returned HTTP 200 with JSON responses. |
+| Commit Search | Read-only `POST C/_apis/search/commitSearchResults` (`7.2-preview.1`) with the upstream `projectName` filter/body shape | HTTP 404. The collection-local candidate is not confirmed; upstream's hardcoded cloud-host route must not be used as a fallback. |
+
+These are route-level observations for one collection, not proof of every
+input combination, pagination path, user permission, or Azure DevOps Server
+release. `404` results are recorded as unconfirmed rather than generalized to
+all on-premises servers. The write routes in the inventory remain untested.
+
 ## PAT permission model
 
 The following are minimum permission **areas** to validate, not a promise that
@@ -429,12 +486,12 @@ or project name, work-item ID, response body, or credential.
 
 | Area | Evidence and implementation requirement |
 |---|---|
-| Core, Work, WIT, Git, Build/Pipelines, Wiki, Test | Read routes were exercised on one server. Re-test supported operations against the declared compatibility matrix; do not generalize one server's result to every release. |
-| Search | POST search worked and GET returned 405 on the tested server. The upstream cloud host must be replaced with a collection-local route. |
-| Test APIs | Test-run reads worked with versions `5.0` and `6.0`. Test-plan responses may be large despite a small `$top`; test continuation-token paging and bounded output. |
-| Identity | Upstream identity lookup hardcodes `vssps.dev.azure.com`; the collection-local identity route is a candidate that still needs a compatibility test. |
-| Commit search | Upstream hardcodes `almsearch.dev.azure.com`; collection-local commit search has not been verified. Gate it by target capability. |
-| Collection-wide PR search | Upstream uses `C/_apis/git/pullRequests`; verify its availability and pagination on supported server versions. Do not perform an unbounded project/repository fan-out as an implicit fallback. |
+| Core, Work, WIT, Git, Build/Pipelines, Wiki, Test | The read routes listed in the live sweep returned HTTP 200 except all-team iteration capacity (404), build-scoped test-run lookup at `7.2-preview.1` (404 for the sampled build), and PR lookup by commit (HTTP 201). Some conditional routes lacked a usable fixture. Re-test across the compatibility matrix; do not generalize one server's result to every release. |
+| Search | The three collection-local Code, Wiki, and work-item POST searches returned HTTP 200; GET search previously returned 405. Collection-local commit Search returned 404 with the upstream request body. Do not use the cloud host as fallback. |
+| Test APIs | Plan/suite/case reads and test-result reads at `7.2-preview.2` returned HTTP 200. Build-scoped run lookup returned 404 at `7.2-preview.1` for the sampled build and an empty collection at `6.0`; unfiltered `6.0` run listing and result retrieval succeeded. Test-run paging and a matching build-to-run chain remain to be tested. |
+| Identity | The collection-local `GET C/_apis/identities` candidate returned HTTP 200 using the identity filter from `connectionData`. The upstream hardcoded VSSPS route must not receive the PAT. |
+| Commit search | The collection-local candidate returned HTTP 404 with the upstream `projectName` filter/body shape. Upstream hardcodes `almsearch.dev.azure.com`; keep this tool gated until an on-prem-compatible route is established. |
+| Collection-wide PR search | `GET C/_apis/git/pullRequests` returned HTTP 200. Pagination and filters beyond the bounded probe remain untested; do not perform an unbounded project/repository fan-out as an implicit fallback. |
 | Mutations | No live write endpoint was tested. Use mocked requests for every write path, including failure/concurrency cases. |
 | Advanced Security | Cloud-only for this scope; omit rather than return empty data or pretend support. |
 
