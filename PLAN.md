@@ -18,9 +18,10 @@ Plans (5), Wiki (2), Search (3), and Advanced Security (2).
 client, authentication, and tools have not been implemented. The inventory
 below records the upstream tool names, actions, and REST route families as the
 long-term parity reference; it does not mean every upstream tool is in v1.0.
-A bounded, read-only route sweep against one on-premises collection is now
-recorded below. It provides instance-specific evidence for the exercised
-read routes, not write support or a guarantee for other server versions.
+A bounded, read-only route sweep and a separately authorized disposable-write
+verification against one on-premises collection are recorded below. They
+provide instance-specific evidence for the exercised routes, not complete
+feature support or a guarantee for other server versions.
 
 ## Product and parity decisions
 
@@ -38,12 +39,13 @@ read routes, not write support or a guarantee for other server versions.
   tools depend on cloud functionality with no Azure DevOps Server equivalent.
   Other unverified endpoints remain documented and compatibility-gated, not
   silently removed; domains outside v1.0 are deferred, not dropped.
-- Do not create or update Azure DevOps work items as project tracking. This
-  plan is repository documentation only; no external ADO work items were
-  created or changed.
+- Do not use Azure DevOps work items for this repository's project tracking.
+  Any live write test requires separate user authorization, uses uniquely
+  marked disposable records only, never modifies existing work items, and
+  verifies cleanup.
 - Do not make live write requests during development or validation unless the
-  user separately authorizes a specific test. Write behavior is tested with
-  mocked HTTP responses.
+  user separately authorizes a specific test. Ordinary tests remain mocked or
+  read-only.
 
 ## v1.0 scope: project management
 
@@ -484,7 +486,48 @@ endpoint was called; no `PATCH`, `PUT`, or `DELETE` request was sent.
 These are route-level observations for one collection, not proof of every
 input combination, pagination path, user permission, or Azure DevOps Server
 release. `404` results are recorded as unconfirmed rather than generalized to
-all on-premises servers. The write routes in the inventory remain untested.
+all on-premises servers. The separately authorized v1.0 write results follow.
+
+## Authorized v1.0 disposable-write verification
+
+The user explicitly authorized direct REST tests using `ADO_PAT` from the local
+`.env`, with new fake records only and cleanup afterward. This tested the
+collection directly; the MCP server and its tools are still unimplemented.
+The runner generated a unique per-run marker, checked that it did not already
+exist, used `validateOnly=true` before work-item creation and assignment where
+supported, and retained created IDs only in the runner for guarded cleanup.
+No existing work item was updated or deleted, and no work item was created to
+track this repository plan.
+
+| Workflow | Exact route and API version | Result |
+|---|---|---|
+| Work-item create | `POST C/{P}/_apis/wit/workitems/${type}` (`7.1-preview.3`, `application/json-patch+json`), first with `validateOnly=true`, then as a real create | Bug, User Story, and Task creation passed. One Bug and one User Story were created directly; two child Tasks were created directly with a `System.LinkTypes.Hierarchy-Reverse` relation to the fake User Story. A non-empty `System.Description` was also required by a server rule; validation exposed the requirement and the corrected payload passed. |
+| Direct edit | `PATCH C/{P}/_apis/wit/workItems/{W}` (`7.1-preview.3`, JSON Patch) | Updated the fake User Story description and verified the value by reading the item back. |
+| Child-item relationship and iteration field | The Task create route above, followed by `GET C/{P}/_apis/wit/workItems/{W}?$expand=Relations` (`7.1-preview.3`) | Both Tasks were read back with the expected parent relation and the team's configured default `System.IterationPath`. |
+| Batch update and assignment | `PATCH C/_apis/wit/$batch` (`5.0`), with three inner work-item updates | The outer route returned HTTP 200; all three per-item responses returned code 200. Readback verified the description and current-user assignment on the fake Bug and both fake Tasks. |
+| Current-user assignment resolution | Collection-local `GET C/_apis/identities?identityIds=...` (`7.2-preview.1`), then `PATCH` validation on each fake target (`7.1-preview.3`, `validateOnly=true`) | The bare `Account` property did not resolve as an assignable identity. A domain-qualified value composed from the returned identity metadata passed validation for the fake Bug and both fake Tasks and was accepted by the batch update. Do not assume the `Account` property alone is a valid `System.AssignedTo` value. |
+| Comments | `POST` and `PATCH C/{P}/_apis/wit/workItems/{W}/comments` (`7.2-preview.4`); `GET .../comments` (`7.1-preview.3`) | Added a comment to the fake Bug, updated it, and verified the updated comment by reading it back. |
+| Work-item relation | `PATCH C/_apis/wit/$batch` (`5.0`) to add a `Related` link between fake items; `GET C/{P}/_apis/wit/workItems/{W}?$expand=Relations` and direct `PATCH C/{P}/_apis/wit/workItems/{W}` (`7.1-preview.3`) to verify and remove it | The relation appeared on readback and was removed successfully; the second readback confirmed it was absent. |
+| Assigned Bugs, Tasks, and active Tasks | `POST C/{P}/_apis/wit/wiql` (`7.1-preview.2`), using `[System.AssignedTo] = @Me` with Bug/Task and active-state filters | All queries returned HTTP 200 and included the matching fake records. Marker-restricted variants also returned the expected fake Bug and Tasks. |
+| Predefined assigned-to-me and my-activity queries | `GET C/{P}/_apis/work/predefinedqueries/{assignedtome|myactivity}` (`7.2-preview.1`) | Both returned HTTP 200. The assigned-to-me result included the fake Bug and Tasks; my-activity included the fake work-item set. |
+| Work-item Search | `POST C/_apis/search/workitemsearchresults` (`7.2-preview.1`), filtered to the project and unique marker | Returned HTTP 200 and found at least one disposable item by its marker. This verifies the route and a matching result on this run, not exhaustive indexing or search behavior. |
+| Iteration create | `POST C/{P}/_apis/wit/classificationnodes/Iterations` (`7.1-preview.2` and stable `7.1`) | Both requests returned HTTP 404 with server error `TF50309`, which specifies the missing **Create child nodes** permission. Treat this as a permission-blocked operation for this identity, not proof that the route is unsupported. No test iteration was created. |
+| Cleanup | `DELETE C/{P}/_apis/wit/workItems/{W}` (`7.1-preview.3`), followed by GET and a marker-restricted WIQL scan | All four newly created work items were deleted; each delete returned HTTP 200 and each subsequent item read returned HTTP 404. The final marker scan was clear. No iteration node was created, and no existing item was changed. |
+
+Because iteration creation was permission-blocked, the disposable work items
+were temporarily assigned to the team's already-configured default iteration.
+This exercised work-item `System.IterationPath` assignment, but did not change
+the iteration node, team iteration configuration, or backlog order. The
+`teamsettings/iterations` assignment POST and backlog `workitemsorder` reorder
+route were not called: testing either against an existing iteration could
+affect real backlog state. Iteration creation, team assignment, and backlog
+reordering therefore remain unverified for this identity. The **Create child
+nodes** permission must be granted on the project's Iterations classification
+node before repeating those tests with a new disposable iteration.
+
+These are direct REST results for one collection and one authenticated
+identity, not MCP end-to-end results or guarantees for other server versions.
+No credentials, work-item IDs, or private response bodies are recorded here.
 
 ## PAT permission model
 
@@ -509,6 +552,11 @@ Use the least-privilege PAT that covers the tools being invoked. Prefer a
 read-only PAT for ordinary exploration; write-enabled routes must still be
 explicitly called and authorized by the user.
 
+The live test confirms ordinary work-item create/update permissions for the
+tested types, but iteration-node creation additionally requires the server's
+**Create child nodes** permission. A PAT's Work Items scope alone does not
+grant this project/classification-node permission.
+
 ## Compatibility evidence and open questions
 
 Read-only probes performed during earlier planning against one private
@@ -525,11 +573,12 @@ or project name, work-item ID, response body, or credential.
 | Identity | The collection-local `GET C/_apis/identities` candidate returned HTTP 200 using the identity filter from `connectionData`. The upstream hardcoded VSSPS route must not receive the PAT. |
 | Commit search | The collection-local candidate returned HTTP 404 with the upstream `projectName` filter/body shape. Upstream hardcodes `almsearch.dev.azure.com`; keep this tool gated until an on-prem-compatible route is established. |
 | Collection-wide PR search | `GET C/_apis/git/pullRequests` returned HTTP 200. Pagination and filters beyond the bounded probe remain untested; do not perform an unbounded project/repository fan-out as an implicit fallback. |
-| Mutations | No live write endpoint was tested. Use mocked requests for every write path, including failure/concurrency cases. |
+| v1.0 mutations | See "Authorized v1.0 disposable-write verification": work-item create/edit, three-item batch update, child creation, comments, relation add/remove, and cleanup succeeded for disposable records. Iteration-node creation was denied by `Create child nodes`; team iteration assignment and backlog reorder were not attempted. Other write routes remain untested. |
 | Advanced Security | Cloud-only for this scope; omit rather than return empty data or pretend support. |
 
-No live Azure DevOps writes were issued as part of this plan. No external ADO
-work items were created or modified.
+The authorized live test created and deleted four disposable work items. No
+existing work item was modified, and no ADO work item was used to track this
+repository plan.
 
 ## Implementation roadmap
 
@@ -577,9 +626,12 @@ work items were created or modified.
 - v1.0 work-item query, backlog, revision, and comment responses remain
   bounded and paginated. Later pipeline, test, Wiki, and artifact tools must
   meet the same limits before they are enabled.
-- Live integration tests, if enabled, are read-only and use a PAT supplied
-  through the test environment. All writes remain mocked unless separately
-  approved.
+- Live integration tests are read-only by default and use a PAT supplied
+  through the test environment. A separately approved write test must use
+  uniquely marked disposable records, avoid all writes to existing items,
+  use `validateOnly` where supported, clean up every created record, and
+  verify the cleanup with a final marker query. CI must never require live
+  write access.
 - CI and linting must not require a live Azure DevOps service or secret.
 
 ## REST references
