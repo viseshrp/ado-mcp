@@ -359,14 +359,42 @@ means no mutating request was issued.
 | `advsec_get_alerts` | Upstream Advanced Security call: `GET https://advsec.dev.azure.com/{org}/{P}/_apis/alert/repositories/{R}/alerts?api-version=7.2-preview.1`. | Cloud-only feature; not tested on-prem and omitted. |
 | `advsec_get_alert_details` | Upstream Advanced Security call: `GET https://advsec.dev.azure.com/{org}/{P}/_apis/alert/repositories/{R}/alerts/{alertId}?api-version=7.2-preview.1`. | Cloud-only feature; not tested on-prem and omitted. |
 
+### SDK-internal route discovery
+
+The pinned `azure-devops-node-api` makes additional requests before the
+tool-level calls above. When an API client is first acquired on a `WebApi`
+connection, it resolves the resource-area URL by calling the Locations API:
+
+1. `OPTIONS C/_apis/Location` (no `api-version`) discovers the Locations API
+   route.
+2. `GET C/_apis/resourceAreas?api-version=7.2-preview.1` retrieves resource
+   area URLs. The tested on-prem collection returned the empty-area
+   representation, so the SDK uses the collection URL `C`.
+3. Before the first method call for each resource area on that connection,
+   `OPTIONS C/_apis/{area}` (no `api-version`) discovers route templates and
+   supported API versions. The SDK caches these locations per area and
+   connection.
+
+The upstream client factory creates a new `WebApi` connection for each client
+provider call, so these caches do not persist across separate connections.
+The discovered areas and results below are specific to the tested collection.
+Successful discovery does not prove that every tool operation or API version
+in an area is supported.
+
+| SDK resource area | Upstream use | Prior instance probe |
+|---|---|---|
+| `Location` | Resolve the `resourceAreas` endpoint. | Confirmed: `OPTIONS` found the route, and the versioned `GET` returned HTTP 200 with the on-prem empty-area representation. |
+| `Test`, `build`, `core`, `git`, `pipelines`, `testplan`, `testresults`, `wiki`, `wit`, `work` | Route/version discovery for tool API methods. | Confirmed: each `OPTIONS` request returned HTTP 200 with resource-location metadata. This is discovery evidence only, not operation-level coverage. |
+| `Alert` | Advanced Security API methods. | `OPTIONS` returned HTTP 200 with no resource locations. The pinned SDK cannot resolve the upstream Alert route on this collection; Advanced Security remains omitted. |
+
 This is an instance-specific compatibility record, not a server-version
 guarantee. The previous probe was read-only; no write endpoint above has been
 called live. A successful response for one route does not establish support
 for neighboring routes, preview API versions, or other Azure DevOps Server
-releases. The ledger covers explicit tool/helper REST calls; internal
-connection or resource-location discovery performed inside the Node SDK is
-transport behavior and must be addressed separately when implementing the
-Python collection client.
+releases. The ledger records explicit tool/helper calls, and this section
+records the additional SDK-internal discovery requests. The Python collection
+client must either reproduce the relevant discovery behavior or replace it
+with explicit collection-local routes and equivalent compatibility tests.
 
 ## PAT permission model
 
