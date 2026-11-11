@@ -16,18 +16,18 @@ Plans (5), Wiki (2), Search (3), and Advanced Security (2).
 
 **This repository is still a generated project scaffold.** The server, REST
 client, authentication, and tools have not been implemented. The inventory
-below records the upstream tool names, actions, and REST route families to make
-the future implementation scope explicit.
+below records the upstream tool names, actions, and REST route families as the
+long-term parity reference; it does not mean every upstream tool is in v1.0.
 A bounded, read-only route sweep against one on-premises collection is now
 recorded below. It provides instance-specific evidence for the exercised
 read routes, not write support or a guarantee for other server versions.
 
 ## Product and parity decisions
 
-- Preserve the upstream names, actions, meaningful inputs, and behavior for
-  tools with an Azure DevOps Server/TFS equivalent. The endpoint inventory
-  summarizes each action; implementation tests must cover the complete input
-  schemas and output contracts.
+- Deliver parity in staged releases. Preserve upstream names, actions,
+  meaningful inputs, and behavior for the Azure DevOps Server/TFS-equivalent
+  tools when each tool is implemented; the endpoint inventory is the later
+  release reference, not a requirement to ship all domains in v1.0.
 - Use Python and FastMCP with a small, typed HTTP client. Do not copy upstream
   implementation code. Preserve applicable license notices if code is later
   adapted.
@@ -36,13 +36,46 @@ read routes, not write support or a guarantee for other server versions.
   values are built into the package.
 - Advanced Security is the known product-level omission: the two upstream
   tools depend on cloud functionality with no Azure DevOps Server equivalent.
-  Other uncertain endpoints remain compatibility-gated, not silently removed.
+  Other unverified endpoints remain documented and compatibility-gated, not
+  silently removed; domains outside v1.0 are deferred, not dropped.
 - Do not create or update Azure DevOps work items as project tracking. This
   plan is repository documentation only; no external ADO work items were
   created or changed.
 - Do not make live write requests during development or validation unless the
   user separately authorizes a specific test. Write behavior is tested with
   mocked HTTP responses.
+
+## v1.0 scope: project management
+
+v1.0 is for day-to-day work-item and board/backlog management on a configurable
+Azure DevOps Server/TFS collection: see assigned work, find bugs and other
+items, create and edit work, and manage its board-oriented backlog and
+iterations. Work-item types and fields remain server-defined (for example,
+Task, Bug, or Feature); the client must not hardcode a Jira-like schema.
+
+| Area | In-scope v1.0 behavior |
+|---|---|
+| Project and user context | List projects and teams, resolve the current user, and use collection-local identity lookup where user selection is needed. |
+| Work-item discovery | Read one or batches of work items; retrieve assigned-to-me/my-activity items, saved-query results, and caller-supplied WIQL results; search work items; list revisions, comments, work-item types, and items in a team iteration. |
+| Work-item management | Create and edit work items, batch-update them, create child items, add/update comments, and add/remove work-item-to-work-item relations. Preserve the upstream field, JSON Patch, Markdown, paging, and concurrency semantics applicable to those actions. |
+| Boards and iteration planning | List project/team iterations and team settings, list backlogs and their work items, reorder backlog items, and create/assign iterations. Read team capacity where supported. This means REST-backed backlog/iteration operations, not a board UI or visual board renderer. |
+| Work-item search | Include the upstream `search_workitem` capability on the verified collection-local POST route; retain WIQL as the query path and fallback if Search is unavailable on another server. |
+
+Attachments are a follow-up candidate rather than a v1.0 requirement: the
+available sample work item had no attachment fixture, and upload/link writes
+have not been live-tested. Likewise, all-team iteration capacity returned
+HTTP 404 on the tested collection, so `get_iteration_capacities` is
+compatibility-gated and capacity updates are deferred rather than promised for
+v1.0. Generic work-item relations are in scope; links to pull requests or Wiki
+artifacts depend on later integrations and are deferred.
+
+The following upstream areas remain in the inventory as later releases, not
+v1.0 commitments: Git repositories, branches, files, and pull requests;
+builds, pipelines, logs, and artifacts; test plans and test results; Wiki;
+code/Wiki/commit search. The two Advanced Security tools remain omitted because
+the feature is cloud-only and no Azure DevOps Server/TFS equivalent was found.
+Unverified endpoints stay documented with evidence and are not represented as
+supported merely because they appear in the upstream inventory.
 
 ## Configuration and PAT handling
 
@@ -146,7 +179,7 @@ cloud-hosted routes must be rooted at `C`, not at a cloud alias.
 |---|---|
 | `core_list_project_teams` | List a project's teams with optional `mine`, `$top`, and `$skip`: `GET C/_apis/projects/{P}/teams`. |
 | `core_list_projects` | List projects with `stateFilter`, `$top`, `$skip`, and `continuationToken`: `GET C/_apis/projects`. |
-| `core_get_identity_ids` | Search by identity filter: candidate on-prem route `GET C/_apis/identities?searchFilter=General&filterValue=...`. Upstream uses the cloud VSSPS identity host; verify the collection-local route before advertising this tool. |
+| `core_get_identity_ids` | Search by identity filter: collection-local `GET C/_apis/identities?searchFilter=General&filterValue=...`. The live read-only sweep returned HTTP 200; never send the PAT to the upstream cloud VSSPS host. |
 
 The current-user helper uses `GET C/_apis/connectionData`. Identity lookup is
 also used internally by pull-request tools to resolve the authenticated user,
@@ -504,20 +537,24 @@ work items were created or modified.
    handling, raw `ADO_PAT` Basic auth, TLS verification, bounded timeouts,
    redacted logging, endpoint-version mapping, typed request/response helpers,
    and actionable HTTP errors.
-2. **Read operations:** implement Core, Work, WIT, Repository, Pipeline,
-   Test Plan, Wiki, and supported Search tools. Add pagination and response
-   size limits before enabling bulk or nested responses.
-3. **Write operations:** implement the on-prem equivalents for WIT,
-   iteration/capacity, Git/PR, pipeline, test-plan, and Wiki writes. Never
-   automatically replay ambiguous writes; use JSON Patch/ETags/old-object-ID
-   guards where applicable.
-4. **Compatibility and documentation:** publish a per-server-version matrix
-   showing each tool's supported API version and known limitations. Include
-   setup, `.env` handling, PAT scope guidance, and the explicit
-   Advanced-Security omission.
-5. **Release readiness:** run mocked unit tests, static checks, optional
-   read-only integration tests against a user-supplied server, and secret
-   scanning. No test may perform a live write without separate user approval.
+2. **v1.0 project-management reads:** implement project/team/user context,
+   work-item detail and assigned-to-me queries, saved queries/WIQL, work-item
+   search, revisions/comments/types, team iterations/settings, and backlog
+   reads. Add paging and response-size limits before enabling bulk or nested
+   results.
+3. **v1.0 project-management writes:** implement work-item create/update,
+   batch/child operations, comments, item relations, backlog reorder, and
+   iteration create/assignment. Never automatically replay ambiguous writes;
+   use JSON Patch, revision/concurrency guards, and explicit tool annotations.
+4. **v1.0 compatibility and release:** publish the exact 1.0 tool/action list,
+   distinguish verified routes from compatibility-gated behavior, and provide
+   setup, `.env` handling, PAT permission guidance, and safe-write
+   documentation. Run mocked tests, static checks, optional read-only live
+   tests, and secret scanning; live writes require separate user authorization.
+5. **Later releases:** evaluate attachments and capacity planning, then add
+   Git/repository/PR, build/pipeline, test-management, Wiki, and remaining
+   search integrations in separate increments. Keep Advanced Security omitted
+   unless Azure DevOps Server/TFS support is established.
 
 ## Test and acceptance criteria
 
@@ -526,15 +563,20 @@ work items were created or modified.
 - URL tests cover a collection root with a path prefix (for example
   `/tfs/DefaultCollection`), encoded project/team names, same-origin
   redirects, and rejection of cloud-hosted hardcoded endpoints.
-- Mocked HTTP tests cover every registered tool/action, HTTP verb, route,
+- Mocked HTTP tests cover every v1.0 tool/action, HTTP verb, route,
   `api-version`, request body/content type, pagination token, error response,
   and relevant optimistic-concurrency behavior.
-- Tool-registration tests assert the upstream names/actions for all supported
-  tools and assert that the two Advanced Security tools are not registered.
-- Search tests use POST and cover the observed 405 response for GET.
-- Large test-plan, test-result, build-log, and artifact responses remain
-  bounded and paginated; artifact downloads cannot send the PAT to an
-  unvalidated host.
+- Work-item acceptance tests cover assigned-to-me retrieval, WIQL filtering
+  for Bugs/tasks, create/update, child items, comments, item relations, backlog
+  reads/reordering, and iteration/team context.
+- Tool-registration tests assert the v1.0 names/actions, ensure later DevOps
+  domains are not accidentally exposed in the initial release, and assert
+  that the two Advanced Security tools are not registered.
+- Work-item Search tests use POST and cover the observed 405 response for GET;
+  WIQL remains available when the target's Search route is unsupported.
+- v1.0 work-item query, backlog, revision, and comment responses remain
+  bounded and paginated. Later pipeline, test, Wiki, and artifact tools must
+  meet the same limits before they are enabled.
 - Live integration tests, if enabled, are read-only and use a PAT supplied
   through the test environment. All writes remain mocked unless separately
   approved.
