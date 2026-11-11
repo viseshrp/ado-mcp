@@ -1,0 +1,204 @@
+[project]
+name = "ado-mcp"
+dynamic = ["version"]
+description = "Python MCP server for on-premises Azure DevOps Server and TFS."
+authors = [{ name = "Visesh Prasad", email = "11642379+viseshrp@users.noreply.github.com" }]
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["python"]
+requires-python = ">=3.11,<4.0"
+dependencies = ["click>=8.5.1", ]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+    "Environment :: Console",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
+]
+
+[project.urls]
+Homepage = "https://github.com/viseshrp/ado-mcp"
+Repository = "https://github.com/viseshrp/ado-mcp"
+Documentation = "https://github.com/viseshrp/ado-mcp/blob/main/README.md"
+Changelog = "https://github.com/viseshrp/ado-mcp/blob/main/CHANGELOG.md"
+Bug-Tracker = "https://github.com/viseshrp/ado-mcp/issues"
+CI = "https://github.com/viseshrp/ado-mcp/actions"
+
+[project.scripts]
+"ado-mcp" = "ado_mcp.__main__:main"
+
+[dependency-groups]
+dev = [
+    "ipdb",
+    "uv",
+    "tox",
+    "tox-uv",
+    "tox-gh-actions",
+    "pytest",
+    "pre-commit",
+    "ruff",
+    "pip-audit",
+    "bandit[toml]",
+    "codespell",
+    "ty",
+    "vulture",
+    "deptry",
+    # liccheck imports pkg_resources, which newer setuptools no longer provides.
+    "cogapp",
+    "twine",
+    "hatch",
+    "pip-licenses>=5.5.5",
+]
+
+[build-system]
+requires = ["hatchling", "hatch-timestamp-version"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "ado_mcp/_version.py"
+source = "vcs-dev-timestamp"
+validate-bump = true
+
+[tool.hatch.version.raw-options]
+local_scheme = "no-local-version"
+timestamp_format = "long"
+fallback_version = "0.0.0"
+
+[tool.hatch.build]
+include = [
+  "ado_mcp/**",
+  "README.md",
+  "LICENSE",
+  "CHANGELOG.md"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["ado_mcp"]
+
+[tool.hatch.build.targets.editable]
+packages = ["ado_mcp"]
+
+[tool.hatch.envs.default]
+path = ".venv"
+
+[tool.uv]
+default-groups = "all"
+
+[tool.ty.src]
+include = [
+    "ado_mcp"
+]
+
+[tool.ty.environment]
+python-version = "3.11"
+
+[tool.ty.analysis]
+allowed-unresolved-imports = ["**"]
+
+[tool.ty.rules]
+unused-type-ignore-comment = "error"
+
+[tool.pytest.ini_options]
+tmp_path_retention_policy = "failed"
+testpaths = ["tests"]
+addopts = "--capture=tee-sys --tb=native -ra -vv"
+markers = [
+    "integration:Run integration tests",
+    "smoke:Run the smoke tests",
+    "unit:Run the unit tests",
+]
+norecursedirs = [
+    ".git",
+    ".idea",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+fix = true
+unsafe-fixes = true
+exclude = [".venv", "__init__.py"]
+
+[tool.ruff.lint]
+fixable = ["ALL"]
+select = [
+    # flake8-2020
+    "YTT",
+    # flake8-bandit
+    "S",
+    # flake8-bugbear
+    "B",
+    # flake8-builtins
+    "A",
+    # flake8-comprehensions
+    "C4",
+    # flake8-debugger
+    "T10",
+    # flake8-simplify
+    "SIM",
+    # isort (keep this if you want Ruff to sort imports)
+    "I",
+    # mccabe
+    "C90",
+    # pycodestyle
+    "E", "W",
+    # pep8-naming rules
+    "N",
+    # pyflakes
+    "F",
+    # pygrep-hooks
+    "PGH",
+    # pyupgrade
+    "UP",
+    # ruff-native rules
+    "RUF",
+    # try/except linting
+    "TRY",
+    # Disallow print statements
+    "T201",
+]
+ignore = [
+    "C901", # Function is too complex
+    "PGH003" # blanket-type-ignore
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]
+"scripts/*.py" = ["T201"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["ado_mcp", "tests"]
+force-sort-within-sections = true
+
+[tool.codespell]
+ignore-words = "codespell.txt"
+skip = '*.pyc,*.xml,*.gif,*.png,*.jpg,*.js,*.html,*.json,*.gz,Makefile'
+quiet-level = 3
+
+[tool.bandit]
+targets = ["ado_mcp"]
+exclude_dirs = ["venv", ".venv", "tests"]
+
+[tool.vulture]
+paths = ["ado_mcp", "tests"]
+min_confidence = 80
+sort_by_size = true
+exclude = ["venv/", ".venv/"]
+
+[tool.deptry]
+exclude = ["venv/.*", ".venv/.*", "tests/.*"]
+
+[tool.pre-commit.default_language_versions]
+python = "3.15"
