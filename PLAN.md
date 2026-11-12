@@ -49,18 +49,19 @@ feature support or a guarantee for other server versions.
 
 ## v1.0 scope: project management
 
-v1.0 is for day-to-day work-item and board/backlog management on a configurable
-Azure DevOps Server/TFS collection: see assigned work, find bugs and other
-items, create and edit work, and manage its board-oriented backlog and
-iterations. Work-item types and fields remain server-defined (for example,
-Task, Bug, or Feature); the client must not hardcode a Jira-like schema.
+v1.0 is for day-to-day work-item management and read-oriented board/iteration
+context on a configurable Azure DevOps Server/TFS collection: see assigned
+work, find bugs and other items, create and edit work, and inspect its
+board-oriented backlog and iterations. Work-item types and fields remain
+server-defined (for example, Task, Bug, or Feature); the client must not
+hardcode a Jira-like schema.
 
 | Area | In-scope v1.0 behavior |
 |---|---|
 | Project and user context | List projects and teams, resolve the current user, and use collection-local identity lookup where user selection is needed. |
 | Work-item discovery | Read one or batches of work items; retrieve assigned-to-me/my-activity items, saved-query results, and caller-supplied WIQL results; search work items; list revisions, comments, work-item types, and items in a team iteration. |
 | Work-item management | Create and edit work items, batch-update them, create child items, add/update comments, and add/remove work-item-to-work-item relations. Preserve the upstream field, JSON Patch, Markdown, paging, and concurrency semantics applicable to those actions. |
-| Boards and iteration planning | List project/team iterations and team settings, list backlogs and their work items, reorder backlog items, and create/assign iterations. Read team capacity where supported. This means REST-backed backlog/iteration operations, not a board UI or visual board renderer. |
+| Boards and iteration planning | List project/team iterations and team settings, list backlogs and their work items, and read team capacity where supported. Iteration creation, team iteration assignment, and backlog reordering are deferred to a later phase. This means REST-backed backlog/iteration operations, not a board UI or visual board renderer. |
 | Work-item search | Include the upstream `search_workitem` capability on the verified collection-local POST route; retain WIQL as the query path and fallback if Search is unavailable on another server. |
 
 Attachments are a follow-up candidate rather than a v1.0 requirement: the
@@ -70,6 +71,18 @@ HTTP 404 on the tested collection, so `get_iteration_capacities` is
 compatibility-gated and capacity updates are deferred rather than promised for
 v1.0. Generic work-item relations are in scope; links to pull requests or Wiki
 artifacts depend on later integrations and are deferred.
+
+### Later phase: iteration writes and backlog reordering
+
+These workflows are explicitly outside v1.0. The v1.0 release will expose
+iteration/team/backlog reads, but will not create iteration nodes, assign
+iterations to teams, or reorder a backlog.
+
+| Deferred workflow | Evidence and promotion criteria |
+|---|---|
+| `work_iteration_write.create` | Creation returned HTTP 404 `TF50309` for the tested identity, specifying missing **Create child nodes** permission. Re-test only with that permission and a uniquely named disposable iteration that can be removed afterward. |
+| `work_iteration_write.assign` | Not tested because no disposable iteration could be created. Before implementation, verify assignment using isolated test resources; do not change an existing team's iteration configuration for validation. |
+| `wit_backlog.reorder` | Not tested because reordering a shared backlog could change existing item ordering. Before implementation, verify against an isolated disposable backlog and prove cleanup leaves existing work items untouched. |
 
 The following upstream areas remain in the inventory as later releases, not
 v1.0 commitments: Git repositories, branches, files, and pull requests;
@@ -192,7 +205,7 @@ reviewers, and creators.
 | Upstream tool | Actions and REST mapping |
 |---|---|
 | `work` | `list_iterations`: `GET C/{P}/_apis/wit/classificationnodes/Iterations?$depth=...`; `list_team_iterations`: `GET C/{P}/{T}/_apis/work/teamsettings/iterations?$timeframe=current`; `get_team_settings`: `GET C/{P}/{T}/_apis/work/teamsettings`; `get_team_field_values`: `GET C/{P}/{T}/_apis/work/teamsettings/teamfieldvalues`; `get_team_capacity`: `GET C/{P}/{T}/_apis/work/teamsettings/iterations/{I}/capacities`; `get_iteration_capacities`: `GET C/{P}/_apis/work/iterations/{I}/capacities`. |
-| `work_iteration_write` | `create`: `POST C/{P}/_apis/wit/classificationnodes/Iterations` with the iteration node and dates; `assign`: `POST C/{P}/{T}/_apis/work/teamsettings/iterations` with the iteration path/ID. |
+| `work_iteration_write` | Later phase (not v1.0): `create`: `POST C/{P}/_apis/wit/classificationnodes/Iterations` with the iteration node and dates; `assign`: `POST C/{P}/{T}/_apis/work/teamsettings/iterations` with the iteration path/ID. |
 | `work_capacity_write` | `update`: `PATCH C/{P}/{T}/_apis/work/teamsettings/iterations/{I}/capacities/{teamMemberId}` with activities and days off. |
 
 ### Work Items — 9 tools
@@ -201,7 +214,7 @@ reviewers, and creators.
 |---|---|
 | `wit_work_item` | `get`: `GET C/{P?}/_apis/wit/workItems/{W}` with `fields`, `asOf`, and `$expand`; `get_batch`: `POST C/{P}/_apis/wit/workitemsbatch` with IDs and fields; `list_comments`: `GET C/{P}/_apis/wit/workItems/{W}/comments`; `my`: `GET C/{P}/_apis/work/predefinedqueries/{assignedtome\|myactivity}` with `$top` and `includeCompleted`; `list_revisions`: `GET C/{P}/_apis/wit/workItems/{W}/revisions`; `list_for_iteration`: `GET C/{P}/{T}/_apis/work/teamsettings/iterations/{I}/workitems`; `get_type`: `GET C/{P}/_apis/wit/workitemtypes/{type}`. |
 | `wit_query` | `get`: `GET C/{P}/{T?}/_apis/wit/queries/{queryId-or-path}`; `get_results`: `GET C/{P}/{T?}/_apis/wit/wiql/{queryId}`; `wiql`: `POST C/{P}/{T?}/_apis/wit/wiql` with `{ "query": "..." }`. Preserve `timePrecision`, `$top`, query expansion/depth, deleted-query, and ID-only options where supported. |
-| `wit_backlog` | `list`: `GET C/{P}/{T}/_apis/work/backlogs`; `list_work_items`: `GET C/{P}/{T}/_apis/work/backlogs/{backlogId}/workItems`; `reorder`: `PATCH C/{P}/{T}/_apis/work/workitemsorder`, or `PATCH C/{P}/{T}/_apis/work/iterations/{I}/workitemsorder` for iteration ordering. The reorder body includes IDs and optional parent/previous/next/path information. |
+| `wit_backlog` | v1.0 reads: `list`: `GET C/{P}/{T}/_apis/work/backlogs`; `list_work_items`: `GET C/{P}/{T}/_apis/work/backlogs/{backlogId}/workItems`. Later phase (not v1.0): `reorder`: `PATCH C/{P}/{T}/_apis/work/workitemsorder`, or `PATCH C/{P}/{T}/_apis/work/iterations/{I}/workitemsorder` for iteration ordering. The reorder body includes IDs and optional parent/previous/next/path information. |
 | `wit_work_item_attachment` | Download: `GET C/_apis/wit/attachments/{attachmentId}` with optional `fileName` and download options. Stream the response and enforce size/path limits for any local save. |
 | `wit_work_item_attachment_upload` | Upload: `POST C/_apis/wit/attachments?fileName=...` with decoded binary content; return the attachment reference. |
 | `wit_work_item_attachment_link` | Link the uploaded attachment: `PATCH C/{P}/_apis/wit/workItems/{W}` with a JSON Patch `AttachedFile` relation and optional comment. |
@@ -328,8 +341,8 @@ means no mutating request was issued.
 | `work.get_team_field_values` | `GET C/{P}/{T}/_apis/work/teamsettings/teamfieldvalues` (`7.2-preview.1`). | Not tested. |
 | `work.get_team_capacity` | `GET C/{P}/{T}/_apis/work/teamsettings/iterations/{I}/capacities` (`7.2-preview.3`). | Not tested. |
 | `work.get_iteration_capacities` | `GET C/{P}/_apis/work/iterations/{I}/capacities` (`7.2-preview.1`). | Not tested. |
-| `work_iteration_write.create` | `POST C/{P}/_apis/wit/classificationnodes/Iterations[/{parentPath}]` (`7.1-preview.2`) with the classification-node body. | Write not tested. |
-| `work_iteration_write.assign` | `POST C/{P}/{T}/_apis/work/teamsettings/iterations` (`7.2-preview.1`) with the iteration path or ID. | Write not tested. |
+| `work_iteration_write.create` | `POST C/{P}/_apis/wit/classificationnodes/Iterations[/{parentPath}]` (`7.1-preview.2`) with the classification-node body. | Later phase, not v1.0: attempted at `7.1-preview.2` and stable `7.1`; blocked by `TF50309` (**Create child nodes** permission). |
+| `work_iteration_write.assign` | `POST C/{P}/{T}/_apis/work/teamsettings/iterations` (`7.2-preview.1`) with the iteration path or ID. | Later phase, not v1.0: not attempted because an isolated disposable iteration was unavailable. |
 | `work_capacity_write.update` | `PATCH C/{P}/{T}/_apis/work/teamsettings/iterations/{I}/capacities/{teamMemberId}` (`7.2-preview.3`) with a capacity patch. | Write not tested. |
 | `wit_work_item.get` | `GET C/{P?}/_apis/wit/workItems/{W}` (`7.1-preview.3`), optionally with `fields`, `asOf`, and `$expand`. | Confirmed: work-item detail returned HTTP 200. |
 | `wit_work_item.get_batch` | `POST C/{P}/_apis/wit/workitemsbatch` (`7.1-preview.1`) with IDs and fields. | Not tested. |
@@ -342,7 +355,7 @@ means no mutating request was issued.
 | `wit_query.get_results` | `GET C/{P}/{T?}/_apis/wit/wiql/{queryId}` (`7.1-preview.2`) with `timePrecision` and `$top`. | Not individually recorded. |
 | `wit_query.wiql` | `POST C/{P}/{T?}/_apis/wit/wiql` (`7.1-preview.2`) with a JSON `{ "query": "..." }` body and optional `timePrecision`/`$top`. | Confirmed: read-only WIQL returned HTTP 200. |
 | `wit_backlog.list` / `list_work_items` | `GET C/{P}/{T}/_apis/work/backlogs` and `GET .../backlogs/{backlogId}/workItems` (both `7.2-preview.1`). | Not tested. |
-| `wit_backlog.reorder` | `PATCH C/{P}/{T}/_apis/work/workitemsorder` or `PATCH C/{P}/{T}/_apis/work/iterations/{I}/workitemsorder` (`7.2-preview.1`) with a reorder operation. | Write not tested. |
+| `wit_backlog.reorder` | `PATCH C/{P}/{T}/_apis/work/workitemsorder` or `PATCH C/{P}/{T}/_apis/work/iterations/{I}/workitemsorder` (`7.2-preview.1`) with a reorder operation. | Later phase, not v1.0: not attempted because it could modify ordering in the shared backlog. |
 | `wit_work_item_attachment` download | `GET C/{P?}/_apis/wit/attachments/{attachmentId}` (`7.1-preview.3`), optionally with `fileName` and download options. | Not tested. |
 | `wit_work_item_attachment_upload` | `POST C/{P?}/_apis/wit/attachments` (`7.1-preview.3`) with `fileName` and binary content. | Write not tested. |
 | `wit_work_item_attachment_link` | `PATCH C/{P}/_apis/wit/workItems/{W}` (`7.1-preview.3`) with an `AttachedFile` JSON Patch relation. | Write not tested. |
@@ -488,11 +501,13 @@ input combination, pagination path, user permission, or Azure DevOps Server
 release. `404` results are recorded as unconfirmed rather than generalized to
 all on-premises servers. The separately authorized v1.0 write results follow.
 
-## Authorized v1.0 disposable-write verification
+## Authorized v1.0 direct REST verification
 
 The user explicitly authorized direct REST tests using `ADO_PAT` from the local
 `.env`, with new fake records only and cleanup afterward. This tested the
-collection directly; the MCP server and its tools are still unimplemented.
+collection directly, as intended before implementing the MCP tools. The MCP
+server and its tools are still unimplemented; tool-level tests follow
+implementation.
 The latest complete run generated a unique per-run marker, checked that it did
 not already exist, used `validateOnly=true` before work-item creation and
 assignment where supported, and retained created IDs only in the runner for
@@ -516,26 +531,19 @@ track this repository plan.
 | Saved queries | `GET C/{P}/_apis/wit/queries?$depth=1`, `GET .../queries/{queryId}?$expand=all`, and `GET .../wiql/{queryId}` (`7.1-preview.2`) | Listing, saved-query detail, and query-result routes returned HTTP 200. `$depth=2` exceeded the runner's 2 MiB response bound; `$depth=1` returned a usable tree and a query fixture. |
 | Work-item Search and paging | `POST C/_apis/search/workitemsearchresults` (`7.2-preview.1`) with a project filter, unique marker, `$top`, and `$skip`; GET compatibility probe | The final run returned all five fake items for the unique marker. A separate read-only Search query verified two bounded offset pages with distinct item IDs. `GET` returned HTTP 405, so this collection-local Search route is POST-only. A preceding run returned no marker hits, while the later run found all five; immediate post-create indexing consistency is therefore not guaranteed by this evidence. |
 | Team iteration, backlog, and capacity reads | `GET C/{P}/{T}/_apis/work/teamsettings/iterations/{I}/workitems`, `GET .../backlogs`, `GET .../backlogs/{backlogId}/workItems` (`7.2-preview.1`), and `GET .../iterations/{I}/capacities` (`7.2-preview.3`) | All returned HTTP 200. The default team iteration listing included the fake work items; backlog listing/items and team iteration capacity were readable. No team iteration configuration was modified, and no reorder API was called. |
-| Iteration create | `POST C/{P}/_apis/wit/classificationnodes/Iterations` (`7.1-preview.2` and stable `7.1`) | Both requests returned HTTP 404 with server error `TF50309`, specifying missing **Create child nodes** permission. This is permission-blocked for this identity, not proof that the route is unsupported. No test iteration was created. |
-| Team iteration assignment and backlog reorder | `POST C/{P}/{T}/_apis/work/teamsettings/iterations` (`7.2-preview.1`) and `PATCH C/{P}/{T}/_apis/work/workitemsorder` or the iteration-specific reorder route | Not attempted: without permission to create an isolated iteration/backlog, using an existing team iteration or reordering a shared backlog could modify existing configuration or item ordering. |
 | Cleanup | `DELETE C/{P}/_apis/wit/workItems/{W}` (`7.1-preview.3`), followed by GET and a marker-restricted WIQL scan | All five newly created work items were deleted; each delete returned HTTP 200 and each subsequent item read returned HTTP 404. The final marker scan was clear. No existing work item was targeted, and no team-setting or iteration-node write or backlog-reorder request was issued. |
 
-Because iteration creation was permission-blocked, the disposable work items
-were temporarily assigned to the team's already-configured default iteration.
-This exercised work-item `System.IterationPath` assignment, but did not change
-the iteration node, team iteration configuration, or backlog order. The
-`teamsettings/iterations` assignment POST and backlog `workitemsorder` reorder
-route were not called: testing either against an existing iteration could
-affect real backlog state. Iteration creation, team assignment, and backlog
-reordering therefore remain unverified for this identity. The **Create child
-nodes** permission must be granted on the project's Iterations classification
-node before repeating those tests with a new disposable iteration and isolated
-backlog. Until then, a full positive end-to-end claim for all v1.0 board and
-iteration writes would be inaccurate.
+The disposable work items were temporarily assigned to the team's already
+configured default iteration. This exercised work-item `System.IterationPath`
+assignment, but did not change the iteration node or team iteration
+configuration. Iteration creation, team assignment, and backlog reordering are
+not v1.0 requirements; their evidence and safe-test criteria are recorded in
+"Later phase: iteration writes and backlog reordering."
 
-These are direct REST results for one collection and one authenticated
-identity, not MCP end-to-end results or guarantees for other server versions.
-No credentials, work-item IDs, or private response bodies are recorded here.
+These are direct REST results, as requested, for one collection and one
+authenticated identity; they do not generalize to other server versions. Add
+MCP-tool integration tests when the tools are implemented. No credentials,
+work-item IDs, or private response bodies are recorded here.
 
 ## PAT permission model
 
@@ -583,7 +591,7 @@ identity value, or credential.
 | Identity | `GET C/_apis/connectionData` and collection-local `GET C/_apis/identities` returned HTTP 200. Lookup by `identityIds` resolved the current user, and `searchFilter=General` with the domain-qualified account value returned the same identity. The upstream hardcoded VSSPS route must not receive the PAT. |
 | Commit search | The collection-local candidate returned HTTP 404 with the upstream `projectName` filter/body shape. Upstream hardcodes `almsearch.dev.azure.com`; keep this tool gated until an on-prem-compatible route is established. |
 | Collection-wide PR search | `GET C/_apis/git/pullRequests` returned HTTP 200. Pagination and filters beyond the bounded probe remain untested; do not perform an unbounded project/repository fan-out as an implicit fallback. |
-| v1.0 | See "Authorized v1.0 disposable-write verification": create/edit, stale-revision rejection, five-item batch update/readback, child creation, comments, relations, assignment, WIQL, predefined queries, saved-query reads/results, Search, backlog/iteration reads, and cleanup succeeded for disposable records or read-only requests. Iteration-node creation was denied by **Create child nodes**; team iteration assignment and backlog reorder were not attempted to avoid touching existing configuration or shared ordering. Attachment and capacity writes are outside the verified v1.0 scope. |
+| v1.0 | See "Authorized v1.0 direct REST verification": create/edit, stale-revision rejection, five-item batch update/readback, child creation, comments, relations, assignment, WIQL, predefined queries, saved-query reads/results, Search, backlog/iteration reads, and cleanup succeeded for disposable records or read-only requests. Iteration creation, team assignment, and backlog reordering are explicitly deferred to a later phase. Attachment and capacity writes are also outside the verified v1.0 scope. |
 | Advanced Security | Cloud-only for this scope; omit rather than return empty data or pretend support. |
 
 The latest authorized live test created and deleted five disposable work
@@ -602,15 +610,17 @@ was used to track this repository plan.
    reads. Add paging and response-size limits before enabling bulk or nested
    results.
 3. **v1.0 project-management writes:** implement work-item create/update,
-   batch/child operations, comments, item relations, backlog reorder, and
-   iteration create/assignment. Never automatically replay ambiguous writes;
-   use JSON Patch, revision/concurrency guards, and explicit tool annotations.
+   batch/child operations, comments, and item relations. Never automatically
+   replay ambiguous writes; use JSON Patch, revision/concurrency guards, and
+   explicit tool annotations.
 4. **v1.0 compatibility and release:** publish the exact 1.0 tool/action list,
    distinguish verified routes from compatibility-gated behavior, and provide
    setup, `.env` handling, PAT permission guidance, and safe-write
    documentation. Run mocked tests, static checks, optional read-only live
    tests, and secret scanning; live writes require separate user authorization.
-5. **Later releases:** evaluate attachments and capacity planning, then add
+5. **Later phases and releases:** implement and verify iteration creation,
+   team iteration assignment, and backlog reordering only with isolated
+   disposable resources. Evaluate attachments and capacity planning, then add
    Git/repository/PR, build/pipeline, test-management, Wiki, and remaining
    search integrations in separate increments. Keep Advanced Security omitted
    unless Azure DevOps Server/TFS support is established.
@@ -627,10 +637,12 @@ was used to track this repository plan.
   and relevant optimistic-concurrency behavior.
 - Work-item acceptance tests cover assigned-to-me retrieval, WIQL filtering
   for Bugs/tasks, create/update, child items, comments, item relations, backlog
-  reads/reordering, and iteration/team context.
+  reads, and iteration/team context. Iteration creation/assignment and backlog
+  reordering are not v1.0 acceptance criteria.
 - Tool-registration tests assert the v1.0 names/actions, ensure later DevOps
-  domains are not accidentally exposed in the initial release, and assert
-  that the two Advanced Security tools are not registered.
+  domains and deferred iteration/backlog writes are not accidentally exposed
+  in the initial release, and assert that the two Advanced Security tools are
+  not registered.
 - Work-item Search tests use POST and cover the observed 405 response for GET;
   WIQL remains available when the target's Search route is unsupported.
 - v1.0 work-item query, backlog, revision, and comment responses remain
@@ -642,6 +654,9 @@ was used to track this repository plan.
   use `validateOnly` where supported, clean up every created record, and
   verify the cleanup with a final marker query. CI must never require live
   write access.
+- Later-phase iteration/team/backlog write tests must use an isolated
+  disposable iteration and backlog; they must not modify existing team
+  settings or existing item ordering.
 - CI and linting must not require a live Azure DevOps service or secret.
 
 ## REST references
