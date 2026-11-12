@@ -493,26 +493,32 @@ all on-premises servers. The separately authorized v1.0 write results follow.
 The user explicitly authorized direct REST tests using `ADO_PAT` from the local
 `.env`, with new fake records only and cleanup afterward. This tested the
 collection directly; the MCP server and its tools are still unimplemented.
-The runner generated a unique per-run marker, checked that it did not already
-exist, used `validateOnly=true` before work-item creation and assignment where
-supported, and retained created IDs only in the runner for guarded cleanup.
-No existing work item was updated or deleted, and no work item was created to
+The latest complete run generated a unique per-run marker, checked that it did
+not already exist, used `validateOnly=true` before work-item creation and
+assignment where supported, and retained created IDs only in the runner for
+guarded cleanup. It created one Bug, one User Story, and three Tasks. No
+existing work item was updated or deleted, and no work item was created to
 track this repository plan.
 
 | Workflow | Exact route and API version | Result |
 |---|---|---|
-| Work-item create | `POST C/{P}/_apis/wit/workitems/${type}` (`7.1-preview.3`, `application/json-patch+json`), first with `validateOnly=true`, then as a real create | Bug, User Story, and Task creation passed. One Bug and one User Story were created directly; two child Tasks were created directly with a `System.LinkTypes.Hierarchy-Reverse` relation to the fake User Story. A non-empty `System.Description` was also required by a server rule; validation exposed the requirement and the corrected payload passed. |
-| Direct edit | `PATCH C/{P}/_apis/wit/workItems/{W}` (`7.1-preview.3`, JSON Patch) | Updated the fake User Story description and verified the value by reading the item back. |
-| Child-item relationship and iteration field | The Task create route above, followed by `GET C/{P}/_apis/wit/workItems/{W}?$expand=Relations` (`7.1-preview.3`) | Both Tasks were read back with the expected parent relation and the team's configured default `System.IterationPath`. |
-| Batch update and assignment | `PATCH C/_apis/wit/$batch` (`5.0`), with three inner work-item updates | The outer route returned HTTP 200; all three per-item responses returned code 200. Readback verified the description and current-user assignment on the fake Bug and both fake Tasks. |
-| Current-user assignment resolution | Collection-local `GET C/_apis/identities?identityIds=...` (`7.2-preview.1`), then `PATCH` validation on each fake target (`7.1-preview.3`, `validateOnly=true`) | The bare `Account` property did not resolve as an assignable identity. A domain-qualified value composed from the returned identity metadata passed validation for the fake Bug and both fake Tasks and was accepted by the batch update. Do not assume the `Account` property alone is a valid `System.AssignedTo` value. |
-| Comments | `POST` and `PATCH C/{P}/_apis/wit/workItems/{W}/comments` (`7.2-preview.4`); `GET .../comments` (`7.1-preview.3`) | Added a comment to the fake Bug, updated it, and verified the updated comment by reading it back. |
-| Work-item relation | `PATCH C/_apis/wit/$batch` (`5.0`) to add a `Related` link between fake items; `GET C/{P}/_apis/wit/workItems/{W}?$expand=Relations` and direct `PATCH C/{P}/_apis/wit/workItems/{W}` (`7.1-preview.3`) to verify and remove it | The relation appeared on readback and was removed successfully; the second readback confirmed it was absent. |
-| Assigned Bugs, Tasks, and active Tasks | `POST C/{P}/_apis/wit/wiql` (`7.1-preview.2`), using `[System.AssignedTo] = @Me` with Bug/Task and active-state filters | All queries returned HTTP 200 and included the matching fake records. Marker-restricted variants also returned the expected fake Bug and Tasks. |
-| Predefined assigned-to-me and my-activity queries | `GET C/{P}/_apis/work/predefinedqueries/{assignedtome|myactivity}` (`7.2-preview.1`) | Both returned HTTP 200. The assigned-to-me result included the fake Bug and Tasks; my-activity included the fake work-item set. |
-| Work-item Search | `POST C/_apis/search/workitemsearchresults` (`7.2-preview.1`), filtered to the project and unique marker | Returned HTTP 200 and found at least one disposable item by its marker. This verifies the route and a matching result on this run, not exhaustive indexing or search behavior. |
-| Iteration create | `POST C/{P}/_apis/wit/classificationnodes/Iterations` (`7.1-preview.2` and stable `7.1`) | Both requests returned HTTP 404 with server error `TF50309`, which specifies the missing **Create child nodes** permission. Treat this as a permission-blocked operation for this identity, not proof that the route is unsupported. No test iteration was created. |
-| Cleanup | `DELETE C/{P}/_apis/wit/workItems/{W}` (`7.1-preview.3`), followed by GET and a marker-restricted WIQL scan | All four newly created work items were deleted; each delete returned HTTP 200 and each subsequent item read returned HTTP 404. The final marker scan was clear. No iteration node was created, and no existing item was changed. |
+| Work-item create and validation | `POST C/{P}/_apis/wit/workitems/${type}` (`7.1-preview.3`, `application/json-patch+json`), with `validateOnly=true` followed by create | Bug, User Story, and Task validation and creation all passed. A non-empty `System.Description` was required by a server rule; metadata-driven required fields and the corrected payload passed validation. |
+| Direct edit and concurrency | `PATCH C/{P}/_apis/wit/workItems/{W}` (`7.1-preview.3`, JSON Patch), followed by a stale-revision patch | Updated the fake User Story description and verified it on readback. A patch using an obsolete revision returned HTTP 412; subsequent readback confirmed no unintended change. |
+| Child-item relationship and iteration field | Create Tasks with a `System.LinkTypes.Hierarchy-Reverse` relation, then `GET C/{P}/_apis/wit/workItems/{W}?$expand=Relations` (`7.1-preview.3`) | All three fake Tasks were read back with the expected fake User Story parent and the team's configured default `System.IterationPath`. |
+| Current-user identity and assignment | `GET C/_apis/connectionData`; `GET C/_apis/identities?identityIds=...` and `GET C/_apis/identities?searchFilter=General&filterValue=...` (`7.2-preview.1`); assignment `PATCH` validation (`7.1-preview.3`) | The authenticated identity resolved by ID. Searching with the domain-qualified account value returned the same identity; the domain-qualified value passed assignment validation for all five fake items. A bare `Account` value alone was not a valid assignment value. |
+| Batch update and readback | `PATCH C/_apis/wit/$batch` (`5.0`) with five inner updates, followed by individual work-item reads | The outer route returned HTTP 200 and all five inner responses returned code 200. Readback verified the requested description and current-user assignment on each fake record. |
+| Batch and individual reads | `POST C/{P}/_apis/wit/workitemsbatch` (`7.1-preview.1`); `GET C/{P}/_apis/wit/workItems/{W}` (`7.1-preview.3`) | Batch read returned every fake record; individual reads returned all five. |
+| Revisions and paging | `GET C/{P}/_apis/wit/workItems/{W}/revisions` (`7.1-preview.3`) with a bounded page | The fake User Story history included the direct edit, and the page-limit request returned a bounded result. |
+| Comments and paging | `POST`/`PATCH C/{P}/_apis/wit/workItems/{W}/comments` (`7.2-preview.4`); `GET .../comments` (`7.1-preview.3`) | Added and updated a Markdown comment on the fake Bug, verified the updated text by readback, and confirmed the requested comment page limit. |
+| Work-item relation | `PATCH C/_apis/wit/$batch` (`5.0`) to add a `Related` link between fake items; `GET` and `PATCH C/{P}/_apis/wit/workItems/{W}` (`7.1-preview.3`) to verify and remove it | The relation appeared on readback, was removed successfully, and was absent on the second readback. |
+| Assigned Bugs, Tasks, and active Tasks | `POST C/{P}/_apis/wit/wiql` (`7.1-preview.2`) with `[System.AssignedTo] = @Me`, type/state filters, and unique-marker filters | All query variants returned HTTP 200. Marker-restricted queries included the fake Bug and all three fake Tasks; the active-Task query included all three. The broad assigned-Task query was bounded to 100 results, so membership assertions used the marker-restricted query rather than assuming the fakes fall in the first page. A `$top=1` query returned one result. |
+| Predefined assigned-to-me and my-activity queries | `GET C/{P}/_apis/work/predefinedqueries/{assignedtome|myactivity}` (`7.2-preview.1`) with `$top` and `includeCompleted` | Both returned HTTP 200. The assigned-to-me result included the fake Bug and Tasks; my-activity included the fake work-item set. A `$top=1` request returned one result. |
+| Saved queries | `GET C/{P}/_apis/wit/queries?$depth=1`, `GET .../queries/{queryId}?$expand=all`, and `GET .../wiql/{queryId}` (`7.1-preview.2`) | Listing, saved-query detail, and query-result routes returned HTTP 200. `$depth=2` exceeded the runner's 2 MiB response bound; `$depth=1` returned a usable tree and a query fixture. |
+| Work-item Search and paging | `POST C/_apis/search/workitemsearchresults` (`7.2-preview.1`) with a project filter, unique marker, `$top`, and `$skip`; GET compatibility probe | The final run returned all five fake items for the unique marker. A separate read-only Search query verified two bounded offset pages with distinct item IDs. `GET` returned HTTP 405, so this collection-local Search route is POST-only. A preceding run returned no marker hits, while the later run found all five; immediate post-create indexing consistency is therefore not guaranteed by this evidence. |
+| Team iteration, backlog, and capacity reads | `GET C/{P}/{T}/_apis/work/teamsettings/iterations/{I}/workitems`, `GET .../backlogs`, `GET .../backlogs/{backlogId}/workItems` (`7.2-preview.1`), and `GET .../iterations/{I}/capacities` (`7.2-preview.3`) | All returned HTTP 200. The default team iteration listing included the fake work items; backlog listing/items and team iteration capacity were readable. No team iteration configuration was modified, and no reorder API was called. |
+| Iteration create | `POST C/{P}/_apis/wit/classificationnodes/Iterations` (`7.1-preview.2` and stable `7.1`) | Both requests returned HTTP 404 with server error `TF50309`, specifying missing **Create child nodes** permission. This is permission-blocked for this identity, not proof that the route is unsupported. No test iteration was created. |
+| Team iteration assignment and backlog reorder | `POST C/{P}/{T}/_apis/work/teamsettings/iterations` (`7.2-preview.1`) and `PATCH C/{P}/{T}/_apis/work/workitemsorder` or the iteration-specific reorder route | Not attempted: without permission to create an isolated iteration/backlog, using an existing team iteration or reordering a shared backlog could modify existing configuration or item ordering. |
+| Cleanup | `DELETE C/{P}/_apis/wit/workItems/{W}` (`7.1-preview.3`), followed by GET and a marker-restricted WIQL scan | All five newly created work items were deleted; each delete returned HTTP 200 and each subsequent item read returned HTTP 404. The final marker scan was clear. No existing work item was targeted, and no team-setting or iteration-node write or backlog-reorder request was issued. |
 
 Because iteration creation was permission-blocked, the disposable work items
 were temporarily assigned to the team's already-configured default iteration.
@@ -523,7 +529,9 @@ route were not called: testing either against an existing iteration could
 affect real backlog state. Iteration creation, team assignment, and backlog
 reordering therefore remain unverified for this identity. The **Create child
 nodes** permission must be granted on the project's Iterations classification
-node before repeating those tests with a new disposable iteration.
+node before repeating those tests with a new disposable iteration and isolated
+backlog. Until then, a full positive end-to-end claim for all v1.0 board and
+iteration writes would be inaccurate.
 
 These are direct REST results for one collection and one authenticated
 identity, not MCP end-to-end results or guarantees for other server versions.
@@ -562,23 +570,25 @@ grant this project/classification-node permission.
 Read-only probes performed during earlier planning against one private
 on-premises collection succeeded for projects, teams/iterations, work items
 and metadata, WIQL/search, repositories/PRs, builds/pipelines, Wiki, and test
-plans/suites/runs. This plan intentionally records no private host, collection
-or project name, work-item ID, response body, or credential.
+plans/suites/runs. The later authorized v1.0 follow-up adds disposable-record
+write and targeted v1.0 read evidence below. This plan intentionally records
+no private host, collection or project name, work-item ID, response body,
+identity value, or credential.
 
 | Area | Evidence and implementation requirement |
 |---|---|
 | Core, Work, WIT, Git, Build/Pipelines, Wiki, Test | The read routes listed in the live sweep returned HTTP 200 except all-team iteration capacity (404), build-scoped test-run lookup at `7.2-preview.1` (404 for the sampled build), and PR lookup by commit (HTTP 201). Some conditional routes lacked a usable fixture. Re-test across the compatibility matrix; do not generalize one server's result to every release. |
-| Search | The three collection-local Code, Wiki, and work-item POST searches returned HTTP 200; GET search previously returned 405. Collection-local commit Search returned 404 with the upstream request body. Do not use the cloud host as fallback. |
+| Search | The collection-local Code, Wiki, and work-item POST searches returned HTTP 200; GET work-item Search returned 405. The authorized v1.0 run found all five fake work items by a unique marker and verified offset paging with a separate read-only query. An earlier marker search returned no hits, so immediate indexing consistency remains unproven. Collection-local commit Search returned 404 with the upstream request body; do not use the cloud host as fallback. |
 | Test APIs | Plan/suite/case reads and test-result reads at `7.2-preview.2` returned HTTP 200. Build-scoped run lookup returned 404 at `7.2-preview.1` for the sampled build and an empty collection at `6.0`; unfiltered `6.0` run listing and result retrieval succeeded. Test-run paging and a matching build-to-run chain remain to be tested. |
-| Identity | The collection-local `GET C/_apis/identities` candidate returned HTTP 200 using the identity filter from `connectionData`. The upstream hardcoded VSSPS route must not receive the PAT. |
+| Identity | `GET C/_apis/connectionData` and collection-local `GET C/_apis/identities` returned HTTP 200. Lookup by `identityIds` resolved the current user, and `searchFilter=General` with the domain-qualified account value returned the same identity. The upstream hardcoded VSSPS route must not receive the PAT. |
 | Commit search | The collection-local candidate returned HTTP 404 with the upstream `projectName` filter/body shape. Upstream hardcodes `almsearch.dev.azure.com`; keep this tool gated until an on-prem-compatible route is established. |
 | Collection-wide PR search | `GET C/_apis/git/pullRequests` returned HTTP 200. Pagination and filters beyond the bounded probe remain untested; do not perform an unbounded project/repository fan-out as an implicit fallback. |
-| v1.0 mutations | See "Authorized v1.0 disposable-write verification": work-item create/edit, three-item batch update, child creation, comments, relation add/remove, and cleanup succeeded for disposable records. Iteration-node creation was denied by `Create child nodes`; team iteration assignment and backlog reorder were not attempted. Other write routes remain untested. |
+| v1.0 | See "Authorized v1.0 disposable-write verification": create/edit, stale-revision rejection, five-item batch update/readback, child creation, comments, relations, assignment, WIQL, predefined queries, saved-query reads/results, Search, backlog/iteration reads, and cleanup succeeded for disposable records or read-only requests. Iteration-node creation was denied by **Create child nodes**; team iteration assignment and backlog reorder were not attempted to avoid touching existing configuration or shared ordering. Attachment and capacity writes are outside the verified v1.0 scope. |
 | Advanced Security | Cloud-only for this scope; omit rather than return empty data or pretend support. |
 
-The authorized live test created and deleted four disposable work items. No
-existing work item was modified, and no ADO work item was used to track this
-repository plan.
+The latest authorized live test created and deleted five disposable work
+items. No existing work item was targeted for a write, and no ADO work item
+was used to track this repository plan.
 
 ## Implementation roadmap
 
