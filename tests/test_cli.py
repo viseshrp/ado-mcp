@@ -1,4 +1,4 @@
-﻿from click.testing import CliRunner
+from click.testing import CliRunner
 import pytest
 
 from ado_mcp import __version__, cli
