@@ -141,9 +141,12 @@ In the inventory, `C` is `ADO_COLLECTION_URL`; `P` is a project, `T` a team,
 
 Unless stated otherwise, every REST request includes an endpoint-specific
 `api-version` query parameter. The table records the route and meaningful
-operation parameters; the implementation will maintain the selected API
-version in a per-endpoint compatibility map rather than append one global
-version indiscriminately.
+operation parameters. v1.0 does not keep a hand-written compatibility map:
+each operation names its resource area, location ID, and upstream-requested
+version (`ado_mcp/operations.py`), and the client discovers the route and
+negotiates the version per server, as `azure-devops-node-api` does. The
+negotiated version goes in the `api-version` query string; the SDK sends it in
+the `Accept` header, and Microsoft's versioning guide allows both.
 
 ### Upstream API-version reference
 
@@ -454,9 +457,19 @@ guarantee. The previous probe was read-only; no write endpoint above has been
 called live. A successful response for one route does not establish support
 for neighboring routes, preview API versions, or other Azure DevOps Server
 releases. The ledger records explicit tool/helper calls, and this section
-records the additional SDK-internal discovery requests. The Python collection
-client must either reproduce the relevant discovery behavior or replace it
-with explicit collection-local routes and equivalent compatibility tests.
+records the additional SDK-internal discovery requests.
+
+v1.0 reproduces step 3: `OPTIONS C/_apis/{area}` with no `api-version`, cached
+per area for the life of the server process. A 404 or an empty reply counts as
+no locations and is not cached; any other failure is reported, so an
+authentication error never looks like an unsupported route. Steps 1 and 2
+(`OPTIONS C/_apis/Location` and `GET C/_apis/resourceAreas`) are skipped: on
+an on-premises collection the reply is empty and the SDK falls back to `C`,
+and following a non-empty reply would send the PAT to another host. Two calls
+skip discovery and use upstream's fixed routes: `connectionData` with no
+version and `$batch` at `5.0`. Work-item search and identity lookup discover
+under the unconfirmed area names `search` and `IMS` and fall back to
+upstream's fixed routes at `7.2-preview.1` when the location is absent.
 
 ## Live read-only route sweep
 

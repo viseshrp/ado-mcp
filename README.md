@@ -81,6 +81,54 @@ server answered, and `details` lists the fields of an invalid input.
 Some empty results return a plain error text instead, as upstream does, for
 example `No teams found`.
 
+## Compatibility
+
+Azure DevOps Server and TFS releases support different REST API versions.
+Before the first call to a resource area (`core`, `wit`, `work`, and so on),
+the server sends `OPTIONS {collection}/_apis/{area}` and caches the route
+templates and versions the collection advertises, as `azure-devops-node-api`
+does. Each call then uses the advertised route and negotiates the API version:
+
+- the version upstream requests is kept when the server has released it, or
+  when it is a preview within the server's maximum;
+- otherwise the closest version the server offers is sent, for example
+  `7.1` instead of `7.2-preview.1` on a server whose maximum is `7.1`.
+
+The version goes in the `api-version` query parameter. Microsoft's REST
+API versioning guide allows the query parameter or the `Accept` header.
+
+When the collection does not advertise a route that a tool needs, the call
+fails with `unsupported_on_server` and names the tool action. It never returns
+an empty success.
+
+Microsoft's mapping of server releases to the highest REST API version:
+
+| Server release | API version |
+|---|---|
+| Azure DevOps Server vNext | 7.2 |
+| Azure DevOps Server 2022.1 | 7.1 |
+| Azure DevOps Server 2022 | 7.0 |
+| Azure DevOps Server 2020 | 6.0 |
+| Azure DevOps Server 2019 | 5.0 |
+| TFS 2018 | 4.x |
+| TFS 2017 | 3.x |
+| TFS 2015 | 2.x |
+
+Two calls use fixed routes, as upstream does:
+
+- `GET {collection}/_apis/connectionData`, with no `api-version`, for
+  `core_get_current_user`;
+- `PATCH {collection}/_apis/wit/$batch?api-version=5.0` for
+  `wit_work_item_write` `update_batch` and `add_child` and for
+  `wit_work_item_link_write` `link`. These need Azure DevOps Server 2019 or
+  newer.
+
+Work-item search and identity lookup try discovery first. When the server does
+not advertise their routes, they fall back to upstream's fixed routes
+`_apis/search/workitemsearchresults` and `_apis/identities` with version
+`7.2-preview.1`. A 404 or 405 reply on a fallback route is reported as
+`unsupported_on_server`.
+
 ## Development
 
 Requires Python 3.11 or newer and [uv](https://docs.astral.sh/uv/).
