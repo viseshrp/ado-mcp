@@ -39,22 +39,33 @@ feature support or a guarantee for other server versions.
   2026-07-28 elicitation flow), `pydantic` (input and error models), and
   `pydantic-settings` (configuration). No other runtime dependency is used.
 
+- Operate against the configured collection. Project and team parameters are
+  supplied by the caller or optional local defaults; no company-specific
+  values are built into the package.
+- Advanced Security is the known product-level omission: the two upstream
+  tools depend on cloud functionality with no Azure DevOps Server equivalent.
+  Other unverified endpoints remain documented and compatibility-gated, not
+  silently removed; domains outside v1.0 are deferred, not dropped.
+- Do not use Azure DevOps work items for this repository's project tracking.
+  Any live write test requires separate user authorization, uses uniquely
+  marked disposable records only, never modifies existing work items, and
+  verifies cleanup.
+- Do not make live write requests during development or validation unless the
+  user separately authorizes a specific test. Ordinary tests remain mocked or
+  read-only.
+
 ### v1.0 design decisions
 
-These decisions were made while planning v1.0 and are implemented:
-
-- Scope is roadmap steps 1 to 4 below: 12 tools with 30 actions. Earlier
-  drafts said 13 tools and 29 actions; the tool table they pointed to lists
-  12 and 30, and that count was confirmed.
-- `core_get_current_user` is added, read-only, backed by
-  `GET C/_apis/connectionData`. It is the one tool upstream lacks.
+- v1.0 covers roadmap steps 1 to 4 below: 12 tools with 30 actions.
+- `core_get_current_user` is the one tool upstream lacks. It is read-only and
+  backed by `GET C/_apis/connectionData`.
 - Routes and API versions are discovered and negotiated at runtime, as
-  `azure-devops-node-api` does; a fixed version map and pinned-oldest versions
-  were rejected. Every call whose area publishes a location goes through
-  discovery, including comment add and update, which upstream sends directly.
-  Calls with no published location (`connectionData`, `$batch`) keep a fixed
-  version. Work-item search and identity lookup discover first and fall back
-  to upstream's fixed route and `7.2-preview.1`.
+  `azure-devops-node-api` does, instead of a fixed version map or pinned-oldest
+  versions. Every call whose area publishes a location goes through discovery,
+  including comment add and update, which upstream sends directly. Calls with
+  no published location (`connectionData`, `$batch`) keep a fixed version.
+  Work-item search and identity lookup discover first and fall back to
+  upstream's fixed route and `7.2-preview.1`.
 - A missing project or team comes from the settings default, then an MCP
   picker on both protocol eras where the client supports elicitation, then an
   explicit error.
@@ -73,32 +84,16 @@ These decisions were made while planning v1.0 and are implemented:
   from the trimming upstream applies.
 - At most 200 items per page and 2 MiB per reply; over a limit the tool
   returns an error and never truncates.
-- Inputs used only by deferred actions are dropped from the schemas.
+- Inputs used only by deferred actions are not in the schemas.
 - A comment may be sent as Markdown only when discovery negotiates comment API
   `7.2-preview.4`.
-- The scaffold placeholder is removed. Two scaffold tests fail until the test
-  phase rewrites them.
-- No live verification ran during development: the server was not available.
-  Checks that need a real server are recorded as pending below.
-- The `pip-licenses` allowlist gains `Apache-2.0 OR BSD-3-Clause`, `ISC`,
-  `MIT-0`, and `The Unlicense (Unlicense)` for the runtime dependency tree.
-- `README.md` and this plan are updated with the implementation; the
-  changelog is not. Delivery is one branch with small commits and one pull
-  request.
-- Operate against the configured collection. Project and team parameters are
-  supplied by the caller or optional local defaults; no company-specific
-  values are built into the package.
-- Advanced Security is the known product-level omission: the two upstream
-  tools depend on cloud functionality with no Azure DevOps Server equivalent.
-  Other unverified endpoints remain documented and compatibility-gated, not
-  silently removed; domains outside v1.0 are deferred, not dropped.
-- Do not use Azure DevOps work items for this repository's project tracking.
-  Any live write test requires separate user authorization, uses uniquely
-  marked disposable records only, never modifies existing work items, and
-  verifies cleanup.
-- Do not make live write requests during development or validation unless the
-  user separately authorizes a specific test. Ordinary tests remain mocked or
-  read-only.
+- The scaffold placeholder `do_stuff` is gone. The two scaffold tests that
+  assert it fail; rewriting them belongs to the test phase.
+- No tool has run against a real server. Checks that need one are listed as
+  pending under "v1.0 verification status".
+- The `pip-licenses` allowlist includes `Apache-2.0 OR BSD-3-Clause`, `ISC`,
+  `MIT-0`, and `The Unlicense (Unlicense)`, which the runtime dependency tree
+  needs.
 
 ## v1.0 scope: project management
 
