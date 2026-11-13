@@ -92,6 +92,9 @@ with your PAT. `--port` without `--http` is a usage error.
 | `wit_query` | `get`, `get_results`, `wiql` | read-only |
 | `wit_backlog` | `list`, `list_work_items` | read-only |
 | `search_workitem` | single action | read-only |
+| `wit_work_item_write` | `create`, `update`, `update_batch`, `add_child` | mutating |
+| `wit_work_item_comment_write` | `add`, `update` | mutating |
+| `wit_work_item_link_write` | `link`, `unlink` | mutating |
 
 `core_get_current_user` is the one tool Microsoft's server does not have. It
 returns the authenticated user's identity ID, display name, and the
@@ -244,6 +247,40 @@ and certificate environment variables (`HTTPS_PROXY`, `NO_PROXY`,
 `SSL_CERT_FILE`) are honored, so a corporate proxy or CA bundle keeps working.
 Requests time out after 60 seconds, or 10 seconds while connecting. Nothing is
 retried.
+
+## PAT permissions
+
+Use the least-privileged PAT that covers the tools you call. Scope names
+differ between server releases, and a PAT scope never replaces the user's own
+project and team permissions.
+
+| Tools | Read permission | Additional write permission |
+|---|---|---|
+| Projects and teams (`core_list_projects`, `core_list_project_teams`) | Project and Team: Read | None |
+| Identity lookup (`core_get_identity_ids`, `core_get_current_user`, comment mentions) | Identity: Read, where the server offers it | None |
+| Work items, queries, iterations, backlogs, capacity | Work Items: Read | Work Items: Read & Write for `wit_work_item_write`, `wit_work_item_comment_write`, and `wit_work_item_link_write` |
+| Work-item search | Work Items: Read and access to the Search service | None |
+
+A read-only PAT is enough for every read-only tool, and the write tools then
+fail with `permission_denied`.
+
+## Safe-write guidance
+
+- The three write tools carry the MCP annotations `readOnlyHint: false` and
+  `destructiveHint: true`, so a client can ask before each call. The other
+  nine tools are marked read-only.
+- For a read-modify-write update, read the work item first and start the
+  `updates` list with a `test` operation on `/rev` whose value is the revision
+  you read. The server rejects the whole update when the revision changed, and
+  the error reports `precondition_failed` with `[HTTP 412 Precondition Failed]`
+  in its message.
+- Writes are sent once and never retried. After a timeout or a dropped
+  connection, read the work item before trying again, because the first
+  request may have succeeded.
+- Comments default to Markdown, which needs the server to offer comment API
+  `7.2-preview.4`. On a server that offers a lower version, a Markdown comment
+  fails with `unsupported_on_server`; pass `format: "Html"` instead. Html
+  comments are then sent without the `format` parameter.
 
 ## Development
 
