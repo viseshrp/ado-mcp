@@ -105,6 +105,13 @@ supported merely because they appear in the upstream inventory.
 | `ADO_PROJECT` | Optional default project; tool arguments take precedence. |
 | `ADO_TEAM` | Optional default team; tool arguments take precedence. |
 
+Settings load from the process environment first and then from `.env` in the
+current working directory; the environment wins when both set a key. Blank
+values count as unset, and unrelated keys such as `FASTMCP_*` are ignored.
+`ADO_COLLECTION_URL` must use `https`; an `http` URL, user info, a query, a
+fragment, or an Azure DevOps Services host stops the server at startup with a
+configuration error that names the setting without echoing its value.
+
 The existing `.gitignore` excludes `.env`. Keep it that way, provide only blank
 placeholders in any future `.env.example`, and never commit or print a token.
 The user-facing contract is a **raw** `ADO_PAT`; construct HTTP Basic

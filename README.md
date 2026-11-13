@@ -20,6 +20,32 @@ See [PLAN.md](PLAN.md) for the intended scope, compatibility goals, and roadmap.
 - Provide tools for upstream Microsoft Azure DevOps MCP features that have on-prem API equivalents.
 - Omit cloud-only tools and features that have no on-prem equivalent.
 
+## Configuration
+
+| Variable | Required | Meaning |
+|---|---|---|
+| `ADO_COLLECTION_URL` | Yes | Collection root, such as `https://ado.example.net/tfs/DefaultCollection`. Any path is kept. |
+| `ADO_PAT` | Yes | Personal access token, as issued (raw, not base64-encoded). |
+| `ADO_PROJECT` | No | Default project for tools that would otherwise ask for one. |
+| `ADO_TEAM` | No | Default team for tools that would otherwise ask for one. |
+
+The server reads the process environment first, then a `.env` file in the
+current working directory. When a variable is set in both, the environment
+wins. A blank value counts as unset, and unrelated keys in `.env` are ignored.
+
+The PAT is sent only as `Authorization: Basic base64(":" + ADO_PAT)`. It never
+appears in a URL, a log line, or an error message.
+
+`ADO_COLLECTION_URL` must use `https`, name a host, and carry no user info,
+query, or fragment. Azure DevOps Services hosts (`dev.azure.com`,
+`visualstudio.com`, and their subdomains) are rejected. A missing or invalid
+setting stops the server before it starts, with `Error: ` and a message that
+names the setting but not its value, for example:
+
+```text
+Error: Invalid configuration :: ADO_PAT: Field required
+```
+
 ## Errors
 
 A failed tool call returns an error result whose text is a JSON object:
