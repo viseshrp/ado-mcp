@@ -201,6 +201,26 @@ ambiguous response.
   artifact download URLs against the configured server before attaching
   credentials or following redirects.
 
+### Elicitation
+
+Upstream asks the user for a missing project or team
+(`src/shared/elicitations.ts`): it offers a single-choice form of the first
+100 well-formed projects, or of the project's teams, and returns
+`Project selection cancelled.` or `Team selection cancelled.` when the user
+declines, or `No projects found to select from.` (an error) when there is
+nothing to pick. Upstream reads its optional default project and team inside
+those functions, so a default applies only where upstream would ask.
+
+v1.0 keeps that order: argument, `ADO_PROJECT` or `ADO_TEAM`, picker, and
+otherwise an explicit `missing_project_or_team` error when the client did not
+declare elicitation. The picker supports both MCP protocol eras. Handshake-era
+connections (2024-11-05 to 2025-11-25) use a server-initiated
+`elicitation/create` request. 2026-07-28 connections have no back-channel, so
+the tool returns an `InputRequiredResult` and reads the answer from the
+retried call. A team request also carries the chosen project in the request
+state, because the retried call returns only the newest answers. Neither
+picker path has run against a real client and server yet.
+
 ### Content safety
 
 Upstream wraps every text block of every tool result, error results

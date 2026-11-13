@@ -48,6 +48,34 @@ Error: Invalid configuration :: ADO_PAT: Field required
 
 ## Behavior and safety
 
+### Missing project or team
+
+When a tool needs a project and the call names none, the server tries, in
+order:
+
+1. the `project` argument;
+2. `ADO_PROJECT`;
+3. on a 2026-07-28 connection, the project picked earlier in the same
+   multi-round call;
+4. a picker listing the collection's first 100 projects, when the client
+   supports elicitation;
+5. otherwise a `missing_project_or_team` error:
+   `No project was given. Pass 'project' or set ADO_PROJECT.`
+
+Teams follow the same order with the `team` argument, `ADO_TEAM`, and the
+project's teams. The picker works on both MCP protocol eras. Clients on
+protocol versions 2024-11-05 through 2025-11-25 get a server-initiated
+elicitation request. Clients on 2026-07-28 get an input-required result and
+retry the call with the answer. Declining or cancelling the picker ends the
+call with `Project selection cancelled.` or `Team selection cancelled.`
+
+Some actions never resolve a project, as upstream: `wit_work_item` `get` and
+`wit_work_item_write` `update` and `update_batch` work at collection scope
+when no project is given, and `search_workitem` treats `project` as a filter
+only. `work` `get_team_capacity` requires `team` and does not ask for one.
+`wit_work_item` `list_for_iteration` and `wit_query` `get_results` and `wiql`
+pass `team` through as given.
+
 ### Untrusted content
 
 Work-item titles, descriptions, and comments are written by other people and
