@@ -2,6 +2,7 @@
 # Input names are upstream's camelCase names; they are the public tool schema.
 """The `work` tool: iterations, team settings, and capacity."""
 
+from types import MappingProxyType
 from typing import Annotated, Literal
 
 from fastmcp import Context, FastMCP
@@ -41,17 +42,23 @@ WorkAction = Literal[
 ]
 
 # Picker messages per action, as upstream words them.
-_PROJECT_MESSAGES = {
-    "list_iterations": "Select the Azure DevOps project to list iterations for.",
-    "list_team_iterations": "Select the Azure DevOps project to list team iterations for.",
-    "get_team_settings": "Select the Azure DevOps project to get team settings for.",
-    "get_team_capacity": "Select the Azure DevOps project to get team capacity for.",
-    "get_iteration_capacities": "Select the Azure DevOps project to get iteration capacities for.",
-}
-_TEAM_MESSAGES = {
-    "list_team_iterations": "Select the Azure DevOps team to list iterations for.",
-    "get_team_settings": "Select the Azure DevOps team to get settings for.",
-}
+_PROJECT_MESSAGES = MappingProxyType(
+    {
+        "list_iterations": "Select the Azure DevOps project to list iterations for.",
+        "list_team_iterations": "Select the Azure DevOps project to list team iterations for.",
+        "get_team_settings": "Select the Azure DevOps project to get team settings for.",
+        "get_team_capacity": "Select the Azure DevOps project to get team capacity for.",
+        "get_iteration_capacities": (
+            "Select the Azure DevOps project to get iteration capacities for."
+        ),
+    }
+)
+_TEAM_MESSAGES = MappingProxyType(
+    {
+        "list_team_iterations": "Select the Azure DevOps team to list iterations for.",
+        "get_team_settings": "Select the Azure DevOps team to get settings for.",
+    }
+)
 _ITERATION_STRUCTURE = "iteration"
 # The SDK's numeric TreeNodeStructureType for iterations.
 _ITERATION_STRUCTURE_CODE = 1

@@ -67,7 +67,7 @@ class AdoMcpError(CustomError):
     `status` is the HTTP status of the server reply, when there was one.
     """
 
-    detail = "The Azure DevOps operation failed."
+    detail: str = "The Azure DevOps operation failed."
     # Each subclass sets its fixed code here; `code` reads it, and
     # `AdoHttpError` overrides `code` to derive it from the HTTP status.
     _code: ClassVar[str] = "error"

@@ -3,6 +3,7 @@
 """Work-item read tools: `wit_work_item`, `wit_query`, and `wit_backlog`."""
 
 from datetime import datetime
+from types import MappingProxyType
 from typing import Annotated, Literal
 
 from fastmcp import Context, FastMCP
@@ -59,21 +60,27 @@ QueryAction = Literal["get", "get_results", "wiql"]
 BacklogAction = Literal["list", "list_work_items"]
 
 # Picker messages, as upstream words them.
-_WORK_ITEM_PROJECT_MESSAGES = {
-    "get_batch": "Select the Azure DevOps project to retrieve work items for.",
-    "list_comments": "Select the Azure DevOps project to list work item comments for.",
-    "my": "Select the Azure DevOps project to retrieve work items for.",
-    "list_revisions": "Select the Azure DevOps project to list work item revisions for.",
-    "list_for_iteration": "Select the Azure DevOps project to retrieve work items for iteration.",
-    "get_type": "Select the Azure DevOps project to retrieve the work item type from.",
-}
-_BACKLOG_PURPOSES = {"list": "list backlogs", "list_work_items": "list backlog work items"}
+_WORK_ITEM_PROJECT_MESSAGES = MappingProxyType(
+    {
+        "get_batch": "Select the Azure DevOps project to retrieve work items for.",
+        "list_comments": "Select the Azure DevOps project to list work item comments for.",
+        "my": "Select the Azure DevOps project to retrieve work items for.",
+        "list_revisions": "Select the Azure DevOps project to list work item revisions for.",
+        "list_for_iteration": (
+            "Select the Azure DevOps project to retrieve work items for iteration."
+        ),
+        "get_type": "Select the Azure DevOps project to retrieve the work item type from.",
+    }
+)
+_BACKLOG_PURPOSES = MappingProxyType(
+    {"list": "list backlogs", "list_work_items": "list backlog work items"}
+)
 _DEFAULT_MY_QUERY = "assignedtome"
 # Sent as $expand when `fields` is given, because the server rejects both together.
 _NO_EXPAND = "none"
 # Lets the server answer query results from a read replica (eventual
 # consistency), as upstream's read-replica client does.
-_READ_CONSISTENCY = dict([READ_CONSISTENCY_HEADER])
+_READ_CONSISTENCY = MappingProxyType(dict([READ_CONSISTENCY_HEADER]))
 _INVALID_AS_OF = "asOf must be an ISO 8601 date-time"
 # Keys removed from identity-shaped field values in revisions.
 _REVISION_IDENTITY_MARKERS = ("url", "_links", "uniqueName")

@@ -8,6 +8,7 @@ Every write is sent once and never retried.
 
 from collections.abc import Sized
 import re
+from types import MappingProxyType
 from typing import Annotated, Literal
 
 from fastmcp import Context, FastMCP
@@ -86,7 +87,7 @@ _BATCH_ITEM_URI = "/_apis/wit/workitems/{id}?api-version={version}"
 _BATCH_CREATE_URI = "/{project}/_apis/wit/workitems/${type}?api-version={version}"
 _RELATIONS_EXPAND = "Relations"
 # Upstream adds the status text to update errors for these statuses.
-_CONCURRENCY_STATUS_TEXT = {409: "Conflict", 412: "Precondition Failed"}
+_CONCURRENCY_STATUS_TEXT = MappingProxyType({409: "Conflict", 412: "Precondition Failed"})
 _TOO_MANY_IDS = f"At most {MAX_PAGE_SIZE} distinct work item IDs can be sent in one batch."
 _NOT_CREATED = "Work item was not created"
 _VALUE_REQUIRED = "value is required for {op}"
