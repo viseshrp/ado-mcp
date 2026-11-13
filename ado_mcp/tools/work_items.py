@@ -151,6 +151,7 @@ async def _get_work_item(
     asOf: str | None,
     expand: str | None,
 ) -> ToolResult:
+    """GET one work item, collection-scoped when `project` is `None`."""
     _check_as_of(asOf)
     if fields and expand is not None:
         expand = _NO_EXPAND
@@ -167,6 +168,7 @@ async def _get_work_item(
 async def _get_batch(
     client: AdoClient, label: str, project: str, ids: list[int], fields: list[str] | None
 ) -> ToolResult:
+    """POST a batch read of work items; flatten identity fields in the `value` list."""
     body: JsonValue = {"ids": list(ids), "fields": list(fields or DEFAULT_BATCH_FIELDS)}
     reply = await client.send(
         WORK_ITEMS_BATCH,

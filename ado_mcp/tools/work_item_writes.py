@@ -196,6 +196,7 @@ def _check_batch_size(grouped: Sized) -> None:
 
 
 async def _send_batch(client: AdoClient, label: str, requests: list[JsonValue]) -> ToolResult:
+    """PATCH the `$batch` endpoint with the inner requests; pass the reply through."""
     reply = await client.send(
         WORK_ITEM_BATCH_UPDATE, label=label, method="PATCH", json_body=requests
     )
@@ -205,6 +206,7 @@ async def _send_batch(client: AdoClient, label: str, requests: list[JsonValue]) 
 async def _create(
     client: AdoClient, label: str, project: str, workItemType: str, fields: list[FieldValue]
 ) -> ToolResult:
+    """POST a JSON Patch document that creates one work item of `workItemType`."""
     document: list[JsonValue] = [
         _add(f"{_FIELDS_PREFIX}/{field.name}", encode_markdown_value(field.value, field.format))
         for field in fields
@@ -230,6 +232,7 @@ async def _create(
 async def _update(
     client: AdoClient, label: str, id: int, updates: list[PatchOperation]
 ) -> ToolResult:
+    """PATCH one work item, collection-scoped, with the caller's JSON Patch operations."""
     # `value` may be JSON null, so "omitted" is read from the fields that were set.
     for update in updates:
         if update.op != "remove" and "value" not in update.model_fields_set:
@@ -264,6 +267,7 @@ async def _update(
 async def _update_batch(
     client: AdoClient, label: str, batchUpdates: list[BatchUpdate]
 ) -> ToolResult:
+    """Send one `$batch` inner request per distinct work item with its field updates."""
     # Group by ID in one pass, keeping the first-seen order of IDs.
     grouped = {}
     for update in batchUpdates:
@@ -318,6 +322,7 @@ async def _add_child(
     workItemType: str,
     items: list[ChildItem],
 ) -> ToolResult:
+    """Send one `$batch` inner request per child item, each linked to the parent."""
     parent_url = work_item_url(collection_url, project, parentId)
     is_bug = workItemType.lower() == _BUG_TYPE
     uri = _BATCH_CREATE_URI.format(
@@ -511,6 +516,7 @@ def _link_operation(update: LinkUpdate, collection_url: str, project: str) -> di
 async def _link(
     client: AdoClient, label: str, collection_url: str, project: str, updates: list[LinkUpdate]
 ) -> ToolResult:
+    """Send one `$batch` inner request per distinct work item with its new relations."""
     grouped = {}
     for update in updates:
         grouped.setdefault(update.id, []).append(_link_operation(update, collection_url, project))
@@ -525,6 +531,7 @@ async def _link(
 async def _unlink(
     client: AdoClient, label: str, project: str, id: int, type: str, url: str | None
 ) -> ToolResult:
+    """GET a work item's relations, then PATCH it to remove the matching ones."""
     route_values = {"project": project, "id": id}
     work_item = await client.send(
         WORK_ITEM,

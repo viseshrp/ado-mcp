@@ -107,6 +107,7 @@ def _exclude_iterations(nodes: list[JsonValue], excluded: frozenset[int]) -> lis
 async def _list_iterations(
     client: AdoClient, label: str, project: str, depth: int, excludedIds: list[int] | None
 ) -> ToolResult:
+    """GET the root classification nodes; keep iterations, minus `excludedIds`."""
     reply = await client.send(
         CLASSIFICATION_NODES,
         label=label,
@@ -128,6 +129,7 @@ async def _list_iterations(
 async def _list_team_iterations(
     client: AdoClient, label: str, project: str, team: str, timeframe: str | None
 ) -> ToolResult:
+    """GET the team's iterations; return a project/team line, then the `value` list."""
     reply = await client.send(
         TEAM_ITERATIONS,
         label=label,
@@ -142,6 +144,7 @@ async def _list_team_iterations(
 
 
 async def _get_team_settings(client: AdoClient, label: str, project: str, team: str) -> ToolResult:
+    """GET team settings, then team field values; merge them into upstream's shape."""
     route_values = {"project": project, "team": team}
     settings = await client.send(
         TEAM_SETTINGS, label=label, method="GET", route_values=route_values
@@ -153,6 +156,8 @@ async def _get_team_settings(client: AdoClient, label: str, project: str, team: 
     )
     values = field_values if isinstance(field_values, dict) else {}
     merged = {name: settings.get(name) for name in _TEAM_SETTINGS_FIELDS}
+    # Upstream renames the field-values keys: defaultValue -> defaultAreaPath,
+    # field -> areaPathField, values -> areaPaths.
     merged["defaultAreaPath"] = values.get("defaultValue")
     merged["areaPathField"] = values.get("field")
     merged["areaPaths"] = values.get("values")
@@ -176,6 +181,7 @@ def _trim_team_member(member: JsonValue) -> JsonValue:
 async def _get_team_capacity(
     client: AdoClient, label: str, project: str, team: str, iterationId: str
 ) -> ToolResult:
+    """GET one iteration's team capacity; trim each member's URL and identity."""
     reply = await client.send(
         TEAM_CAPACITIES,
         label=label,
@@ -183,6 +189,8 @@ async def _get_team_capacity(
         route_values={"project": project, "team": team, "iterationId": iterationId},
     )
     members = reply.get("teamMembers") if isinstance(reply, dict) else None
+    # Only an empty `teamMembers` list is an error, as upstream's
+    # `teamMembers?.length === 0`; a missing key passes through as an empty list.
     if not isinstance(reply, dict) or members == []:
         return plain_error(_NO_TEAM_CAPACITY)
     members = members if isinstance(members, list) else []
@@ -192,6 +200,7 @@ async def _get_team_capacity(
 async def _get_iteration_capacities(
     client: AdoClient, label: str, project: str, iterationId: str
 ) -> ToolResult:
+    """GET every team's capacity for one iteration; pass the reply through."""
     reply = await client.send(
         ITERATION_CAPACITIES,
         label=label,
