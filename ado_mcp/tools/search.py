@@ -24,7 +24,19 @@ async def search_workitem(
     skip: Skip = 0,
     top: Top = DEFAULT_SEARCH_PAGE_SIZE,
 ) -> ToolResult:
-    """Search work items by text, optionally filtered by project, area, type, state, assignee."""
+    """Search work items by text, optionally filtered by project, area, type, state, assignee.
+
+    Args:
+        searchText: Text to search for in work items.
+        project: Filter by projects.
+        areaPath: Filter by area paths.
+        workItemType: Filter by work item types.
+        state: Filter by work item states.
+        assignedTo: Filter by assignees.
+        includeFacets: Include facets in the results. Defaults to false.
+        skip: Number of results to skip, for paging. Defaults to 0.
+        top: Number of results to return, 1 to 200. Defaults to 10.
+    """
     body: dict[str, JsonValue] = {
         "searchText": searchText,
         "includeFacets": includeFacets,

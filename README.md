@@ -112,7 +112,9 @@ collection.
 | `wit_work_item_link_write` | `link`, `unlink` | mutating | route seen in an earlier direct REST probe |
 
 Tool, action, and input names match Microsoft's Azure DevOps MCP server
-(version 2.11.0), so prompts written for it carry over.
+(version 2.11.0), so prompts written for it carry over. Every input, including
+each field of a nested input such as `updates`, carries a description in the
+tool schema that says what it means and which actions use or require it.
 
 `core_get_current_user` is the one tool Microsoft's server does not have. It
 returns the authenticated user's identity ID, display name, and the

@@ -224,7 +224,24 @@ async def work(
     depth: Annotated[int, Field(ge=0)] = DEFAULT_ITERATION_DEPTH,
     excludedIds: list[ItemId] | None = None,
 ) -> ToolResult:
-    """Read iterations, team settings, and capacity for a project or team."""
+    """Read iterations, team settings, and capacity for a project or team.
+
+    Args:
+        action: The action to perform: list_iterations (all iterations in a project),
+            list_team_iterations (iterations assigned to a team), get_team_settings (a team's
+            default iteration and area paths), get_team_capacity (a team's capacity for one
+            iteration), get_iteration_capacities (every team's capacity for one iteration).
+        project: Name or ID of the project. Reuse it from earlier context when known. When
+            omitted, ADO_PROJECT is used, or you are asked to pick one.
+        team: Name or ID of the team. list_team_iterations and get_team_settings use ADO_TEAM or
+            ask you to pick one when it is omitted; get_team_capacity requires it.
+        iterationId: Iteration ID. Required for get_team_capacity and get_iteration_capacities.
+        timeframe: Limit list_team_iterations to the current iteration. Only 'current' is
+            supported.
+        depth: Levels of child iterations that list_iterations returns. Defaults to 2.
+        excludedIds: Iteration IDs that list_iterations leaves out, together with their
+            children.
+    """
     client = get_client(ctx)
     settings = get_settings(ctx)
     label = action_label(WORK, action)

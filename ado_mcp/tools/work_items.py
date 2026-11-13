@@ -200,7 +200,34 @@ async def wit_work_item(
     iterationId: str | None = None,
     workItemType: str | None = None,
 ) -> ToolResult:
-    """Read work items, their comments, revisions, and type metadata."""
+    """Read work items, their comments, revisions, and type metadata.
+
+    Args:
+        action: The action to perform: get (one work item by ID), get_batch (several work items
+            by ID), list_comments (comments on a work item), my (work items relevant to the
+            authenticated user), list_revisions (revisions of a work item), list_for_iteration
+            (work items in a team iteration), get_type (metadata for a work item type).
+        project: Name or ID of the project. Optional for get, which reads at collection scope
+            without one. The other actions use ADO_PROJECT or ask you to pick one when it is
+            omitted.
+        id: Work item ID. Required for get.
+        ids: Work item IDs, at most 200. Required for get_batch.
+        workItemId: Work item ID. Required for list_comments and list_revisions.
+        fields: Field reference names to return, such as System.Title. Used by get and
+            get_batch. For get, expand is ignored when fields are given.
+        asOf: ISO 8601 date-time. get returns the work item as it was at that time.
+        expand: What to expand: None, Relations, Fields, Links, or All. Used by get and
+            list_revisions. For get, it is ignored when fields are given.
+        top: Maximum number of results, 1 to 200. Used by list_comments, my, and list_revisions.
+            Defaults to 50.
+        continuationToken: Token from an earlier page of comments. Used by list_comments.
+        includeCompleted: Include completed work items. Used by my. Defaults to false.
+        type: Which work items my returns: assignedtome (the default) or myactivity.
+        skip: Number of revisions to skip, for paging. Used by list_revisions.
+        team: Name or ID of the team. Used by list_for_iteration.
+        iterationId: Iteration ID. Required for list_for_iteration.
+        workItemType: Work item type name, such as Bug. Required for get_type.
+    """
     client = get_client(ctx)
     label = action_label(WIT_WORK_ITEM, action)
     if action == "get":
@@ -295,7 +322,28 @@ async def wit_query(
     responseType: Literal["full", "ids"] = "full",
     wiql: Annotated[str, Field(max_length=MAX_WIQL_LENGTH)] | None = None,
 ) -> ToolResult:
-    """Read a saved query, run it, or run an ad-hoc WIQL query."""
+    """Read a saved query, run it, or run an ad-hoc WIQL query.
+
+    Args:
+        action: The action to perform: get (a saved query by ID or path), get_results (run a
+            saved query and return its results), wiql (run a WIQL query).
+        project: Name or ID of the project. Reuse it from earlier context when known. When
+            omitted, ADO_PROJECT is used, or you are asked to pick one.
+        query: ID or path of the saved query, such as Shared Queries/Bugs. Required for get.
+        expand: Extra query detail to include: None, Wiql, Clauses, All, or Minimal. Used by
+            get.
+        depth: Depth of child queries and folders to return. Used by get. Defaults to 0.
+        includeDeleted: Include deleted queries and folders. Used by get. Defaults to false.
+        useIsoDateFormat: Use ISO date format in the response. Used by get. Defaults to false.
+        id: ID of the saved query. Required for get_results.
+        team: Name or ID of the team. Used by get_results and wiql.
+        timePrecision: Include the time in date fields. Used by get_results and wiql.
+        top: Maximum number of results, 1 to 200. Used by get_results and wiql. Defaults to 50.
+        responseType: full returns the complete result (the default); ids returns only the work
+            item IDs and works for flat queries only. Used by get_results.
+        wiql: The WIQL query text, at most 32,768 characters. Required for wiql. Example: SELECT
+            [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project
+    """
     client = get_client(ctx)
     label = action_label(WIT_QUERY, action)
     resolved = await resolve_project(
@@ -353,7 +401,18 @@ async def wit_backlog(
     team: str | None = None,
     backlogId: str | None = None,
 ) -> ToolResult:
-    """List a team's backlog levels, or the work items in one backlog level."""
+    """List a team's backlog levels, or the work items in one backlog level.
+
+    Args:
+        action: The action to perform: list (a team's backlog levels), list_work_items (the work
+            items in one backlog level).
+        project: Name or ID of the project. Reuse it from earlier context when known. When
+            omitted, ADO_PROJECT is used, or you are asked to pick one.
+        team: Name or ID of the team. Reuse it from earlier context when known. When omitted,
+            ADO_TEAM is used, or you are asked to pick one.
+        backlogId: ID of the backlog level (category) to read work items from. Required for
+            list_work_items.
+    """
     client = get_client(ctx)
     settings = get_settings(ctx)
     label = action_label(WIT_BACKLOG, action)

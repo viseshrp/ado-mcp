@@ -111,23 +111,34 @@ _HTML_MENTION = '<a href="#" data-vss-mention="version:2.0,{id}">@{name}</a>'
 class _StrictModel(BaseModel):
     """Nested tool input: strict types, no unknown keys."""
 
-    model_config = ConfigDict(strict=True, extra="forbid")
+    # Attribute docstrings become the field descriptions in the tool schema.
+    model_config = ConfigDict(strict=True, extra="forbid", use_attribute_docstrings=True)
 
 
 class FieldValue(_StrictModel):
     """One field to set when creating a work item."""
 
     name: str
+    """Field reference name, such as System.Title."""
     value: str
+    """The field value."""
     format: TextFormat | None = None
+    """Format of a large text field: Html or Markdown. Optional."""
 
 
 class PatchOperation(_StrictModel):
     """One JSON Patch operation for `update`."""
 
     op: Literal["add", "replace", "remove", "test"] = "add"
+    """The JSON Patch operation, in any letter case: add, replace, remove, or test. Use test on
+    /rev to enforce optimistic concurrency.
+    """
     path: str
+    """Path to change, such as /fields/System.Title, or /rev for a revision test."""
     value: JsonValue = None
+    """Value for the operation, which may be an object or an array. Required for add, replace,
+    and test; omit it for remove. For a test on /rev, pass the numeric revision you read.
+    """
 
     @field_validator("op", mode="before")
     @staticmethod
@@ -140,30 +151,45 @@ class BatchUpdate(_StrictModel):
     """One field update in `update_batch`."""
 
     op: Literal["Add", "Replace", "Remove"] = "Add"
+    """The operation: Add, Replace, or Remove."""
     id: ItemId
+    """ID of the work item to update."""
     path: str
+    """Field path, such as /fields/System.Title."""
     value: str
+    """The new field value."""
     format: TextFormat | None = None
+    """Format of a large text field: Html or Markdown. Optional."""
 
 
 class ChildItem(_StrictModel):
     """One child work item to create under a parent."""
 
     title: str
+    """Title of the child work item."""
     description: str
+    """Description of the child work item."""
     format: TextFormat = "Markdown"
+    """Format of the description. Defaults to Markdown."""
     areaPath: str | None = None
+    """Area path for the child work item. Optional."""
     iterationPath: str | None = None
+    """Iteration path for the child work item. Optional."""
 
 
 class LinkUpdate(_StrictModel):
     """One relation to add in `link`."""
 
     id: ItemId
+    """ID of the work item to add the link to."""
     linkToId: ItemId | None = None
+    """ID of the work item to link to. Required unless type is hyperlink."""
     url: str | None = None
+    """URL of the hyperlink. Required when type is hyperlink."""
     type: LinkTypeName = "related"
+    """Link type. Defaults to related."""
     comment: str | None = None
+    """Comment for the link. Optional."""
 
 
 def multiline_format_path(path: str) -> str:
@@ -350,7 +376,26 @@ async def wit_work_item_write(
     parentId: ItemId | None = None,
     items: Annotated[list[ChildItem], Field(max_length=MAX_CHILD_ITEMS)] | None = None,
 ) -> ToolResult:
-    """Create, update, batch-update, or add child work items."""
+    """Create, update, batch-update, or add child work items.
+
+    Args:
+        action: The action to perform: create (a new work item), update (fields on one work
+            item), update_batch (several work items in one call), add_child (child work items
+            under a parent).
+        project: Name or ID of the project. Used by create and add_child, which use ADO_PROJECT
+            or ask you to pick one when it is omitted.
+        id: ID of the work item to update. Required for update.
+        workItemType: Work item type, such as Task or Bug. Required for create and add_child.
+        fields: Field values for the new work item. Required for create.
+        updates: JSON Patch operations on one work item's fields and relations. Required for
+            update. For a safe read-modify-write, start with a test operation on /rev whose
+            value is the revision you read; the server then rejects the whole update if the
+            revision changed.
+        batchUpdates: Field updates across several work items, at most 200 distinct IDs.
+            Required for update_batch.
+        parentId: ID of the parent work item. Required for add_child.
+        items: Child work items to create, at most 50. Required for add_child.
+    """
     client = get_client(ctx)
     settings = get_settings(ctx)
     label = action_label(WIT_WORK_ITEM_WRITE, action)
@@ -456,7 +501,20 @@ async def wit_work_item_comment_write(
     commentId: ItemId | None = None,
     format: TextFormat = "Markdown",
 ) -> ToolResult:
-    """Add or update a work-item comment in Markdown or Html."""
+    """Add or update a work-item comment in Markdown or Html.
+
+    Args:
+        action: The action to perform: add (add a comment to a work item), update (change an
+            existing comment).
+        project: Name or ID of the project. Reuse it from earlier context when known. When
+            omitted, ADO_PROJECT is used, or you are asked to pick one.
+        workItemId: ID of the work item. Required for add and update.
+        text: The comment text. Mention people as @<email>; each email is resolved through
+            identity lookup. Required for add and update.
+        commentId: ID of the comment to update. Required for update.
+        format: Format of the comment text: Markdown (the default) or Html. Markdown needs a
+            server that offers comment API 7.2-preview.4.
+    """
     client = get_client(ctx)
     label = action_label(WIT_WORK_ITEM_COMMENT_WRITE, action)
     purpose = "add a work item comment in" if action == "add" else "update the work item comment in"
@@ -586,7 +644,19 @@ async def wit_work_item_link_write(
     type: UnlinkTypeName | None = None,
     url: str | None = None,
 ) -> ToolResult:
-    """Add relations between work items, or remove relations of one type."""
+    """Add relations between work items, or remove relations of one type.
+
+    Args:
+        action: The action to perform: link (link work items to each other or add hyperlinks),
+            unlink (remove links of one type from a work item).
+        project: Name or ID of the project. Reuse it from earlier context when known. When
+            omitted, ADO_PROJECT is used, or you are asked to pick one.
+        updates: Links to add. Required for link.
+        id: ID of the work item to remove links from. Required for unlink.
+        type: Link type to remove. Required for unlink.
+        url: Remove only the link with this URL. Used by unlink; when omitted, every link of the
+            type is removed.
+    """
     client = get_client(ctx)
     settings = get_settings(ctx)
     label = action_label(WIT_WORK_ITEM_LINK_WRITE, action)

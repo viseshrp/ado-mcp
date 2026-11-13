@@ -46,7 +46,16 @@ async def core_list_projects(
     continuationToken: int | None = None,
     projectNameFilter: str | None = None,
 ) -> ToolResult:
-    """List the collection's projects, optionally filtered by a name substring."""
+    """List the collection's projects, optionally filtered by a name substring.
+
+    Args:
+        stateFilter: Filter projects by state. Defaults to 'wellFormed'.
+        top: Maximum number of projects to return, 1 to 200.
+        skip: Number of projects to skip, for paging.
+        continuationToken: Continuation token from an earlier page, to fetch the next set of
+            projects.
+        projectNameFilter: Return only projects whose name contains this text, ignoring case.
+    """
     reply = await get_client(ctx).send(
         PROJECTS,
         label=action_label(CORE_LIST_PROJECTS),
@@ -83,7 +92,15 @@ async def core_list_project_teams(
     top: Top | None = None,
     skip: Skip | None = None,
 ) -> ToolResult:
-    """List a project's teams, asking for the project when none is given."""
+    """List a project's teams, asking for the project when none is given.
+
+    Args:
+        project: Name or ID of the project. Reuse it from earlier context when known. When
+            omitted, ADO_PROJECT is used, or you are asked to pick one.
+        mine: If true, return only teams the authenticated user belongs to.
+        top: Maximum number of teams to return, 1 to 200.
+        skip: Number of teams to skip, for paging.
+    """
     client = get_client(ctx)
     label = action_label(CORE_LIST_PROJECT_TEAMS)
     resolved = await resolve_project(
@@ -104,7 +121,11 @@ async def core_list_project_teams(
 
 @ado_tool
 async def core_get_identity_ids(ctx: Context, searchFilter: str) -> ToolResult:
-    """Look up identities and return each one's ID, display name, and descriptor."""
+    """Look up identities and return each one's ID, display name, and descriptor.
+
+    Args:
+        searchFilter: Unique name, display name, or email to search identities for.
+    """
     identities = await search_identities(
         get_client(ctx), searchFilter, action_label(CORE_GET_IDENTITY_IDS)
     )
