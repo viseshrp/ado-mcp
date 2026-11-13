@@ -188,10 +188,15 @@ ambiguous response.
   Bound page counts and response sizes. A previous read-only test-plan probe
   returned a large response even with `$top=1`; test pagination and output
   limits rather than assuming that `$top` bounds every nested payload.
+  Implemented in v1.0: `top` inputs accept at most 200, and every reply,
+  discovery included, is capped at 2 MiB while it streams. Over either limit
+  the tool returns an error; nothing is truncated.
 - Preserve the distinction between an empty result and an unsupported
   endpoint. Return an explicit, actionable error for unavailable
   server-version features; do not turn HTTP errors into empty successful
-  results.
+  results. Implemented in v1.0: a location the collection does not advertise,
+  a version-rejection reply, or a 404/405 on a fixed fallback route is an
+  `unsupported_on_server` error; other HTTP errors keep their status.
 - Treat URLs returned in API payloads as untrusted. In particular, validate
   artifact download URLs against the configured server before attaching
   credentials or following redirects.

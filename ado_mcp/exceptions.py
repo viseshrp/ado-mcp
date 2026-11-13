@@ -8,7 +8,12 @@ from fastmcp.tools import ToolResult
 from mcp_types import InputRequiredResult
 from pydantic import BaseModel, ConfigDict
 
-from .constants import DEFAULT_HTTP_ERROR_CODE, HTTP_ERROR_CODES
+from .constants import (
+    DEFAULT_HTTP_ERROR_CODE,
+    FIRST_HTTP_ERROR_STATUS,
+    HTTP_ERROR_CODES,
+    INVALID_RESPONSE_CODE,
+)
 
 
 class CustomError(Exception):
@@ -119,15 +124,21 @@ class UnsupportedOnServerError(AdoMcpError):
 
 
 class AdoHttpError(AdoMcpError):
-    """The server answered with an error status."""
+    """The server answered with an error status, or with a success body that is not JSON."""
 
     detail = "The Azure DevOps server answered with an error."
 
     @property
     def code(self) -> str:
-        """The error code for the HTTP status, for example 404 -> `not_found`."""
+        """The error code for the HTTP status, for example 404 -> `not_found`.
+
+        A success status means the reply body could not be read as JSON, so the
+        code is `invalid_response`.
+        """
         if self.status is None:
             return DEFAULT_HTTP_ERROR_CODE
+        if self.status < FIRST_HTTP_ERROR_STATUS:
+            return INVALID_RESPONSE_CODE
         return HTTP_ERROR_CODES.get(self.status, DEFAULT_HTTP_ERROR_CODE)
 
 

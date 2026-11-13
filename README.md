@@ -75,6 +75,7 @@ server answered, and `details` lists the fields of an invalid input.
 | `conflict` | HTTP 409. |
 | `precondition_failed` | HTTP 412, for example a stale `/rev` test operation. |
 | `request_failed` | Any other HTTP error status. |
+| `invalid_response` | A success reply whose body is not JSON. |
 | `connection_failed` | The request did not complete, timed out, or was redirected. |
 | `response_too_large` | A reply exceeded 2 MiB. |
 
@@ -128,6 +129,14 @@ not advertise their routes, they fall back to upstream's fixed routes
 `_apis/search/workitemsearchresults` and `_apis/identities` with version
 `7.2-preview.1`. A 404 or 405 reply on a fallback route is reported as
 `unsupported_on_server`.
+
+Every request goes to `ADO_COLLECTION_URL` and keeps its path. Redirects are
+never followed: a 3xx reply is a `connection_failed` error, so the PAT cannot
+reach another URL. TLS certificate verification stays on. The standard proxy
+and certificate environment variables (`HTTPS_PROXY`, `NO_PROXY`,
+`SSL_CERT_FILE`) are honored, so a corporate proxy or CA bundle keeps working.
+Requests time out after 60 seconds, or 10 seconds while connecting. Nothing is
+retried.
 
 ## Development
 

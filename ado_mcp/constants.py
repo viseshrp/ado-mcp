@@ -154,6 +154,9 @@ HTTP_ERROR_CODES = MappingProxyType(
     }
 )
 DEFAULT_HTTP_ERROR_CODE = "request_failed"
+# Code for a success reply whose body is not JSON.
+INVALID_RESPONSE_CODE = "invalid_response"
+FIRST_HTTP_ERROR_STATUS = 400
 # `typeKey` values of the server's "API version not supported" error replies.
 UNSUPPORTED_VERSION_TYPE_KEYS = frozenset(
     {"VssVersionOutOfRangeException", "VssInvalidPreviewVersionException"}
