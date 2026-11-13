@@ -1,4 +1,4 @@
-from click.testing import CliRunner
+﻿from click.testing import CliRunner
 import pytest
 
 from ado_mcp import __version__, cli
@@ -29,11 +29,8 @@ def test_version(options: list[str]) -> None:
     )
 
 
-def test_variadic_arguments_are_forwarded_as_a_tuple(monkeypatch: pytest.MonkeyPatch) -> None:
-    received: list[tuple[str, ...]] = []
-    monkeypatch.setattr(cli, "do_stuff", received.append)
+def test_port_requires_http() -> None:
+    result = CliRunner().invoke(cli.main, ["--port", "9000"])
 
-    result = CliRunner().invoke(cli.main, ["alpha", "beta"])
-
-    assert result.exit_code == 0
-    assert received == [("alpha", "beta")]
+    assert result.exit_code != 0
+    assert "--port requires --http" in result.output
