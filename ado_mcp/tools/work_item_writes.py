@@ -265,11 +265,11 @@ async def _update_batch(
     client: AdoClient, label: str, batchUpdates: list[BatchUpdate]
 ) -> ToolResult:
     # Group by ID in one pass, keeping the first-seen order of IDs.
-    grouped: dict[int, list[BatchUpdate]] = {}
+    grouped = {}
     for update in batchUpdates:
         grouped.setdefault(update.id, []).append(update)
     _check_batch_size(grouped)
-    requests: list[JsonValue] = []
+    requests = []
     for item_id, updates in grouped.items():
         operations: list[JsonValue] = [
             {
@@ -293,7 +293,7 @@ def _child_operations(
     item: ChildItem, number: int, parent_url: str, is_bug: bool
 ) -> list[JsonValue]:
     """Build the JSON Patch document for child item `number` (1-based)."""
-    operations: list[JsonValue] = [
+    operations = [
         _add("/id", f"-{number}"),
         _add(_TITLE_PATH, item.title),
         _add(_RELATIONS_APPEND, {"rel": PARENT_RELATION, "url": parent_url}),
@@ -504,7 +504,7 @@ def _link_operation(update: LinkUpdate, collection_url: str, project: str) -> di
 async def _link(
     client: AdoClient, label: str, collection_url: str, project: str, updates: list[LinkUpdate]
 ) -> ToolResult:
-    grouped: dict[int, list[JsonValue]] = {}
+    grouped = {}
     for update in updates:
         grouped.setdefault(update.id, []).append(_link_operation(update, collection_url, project))
     _check_batch_size(grouped)
@@ -543,7 +543,7 @@ async def _unlink(
             f"No matching relations found for link type '{type}'{url_note}.\n"
             f"{to_json_text(relations)}"
         )
-    removed: list[JsonValue] = [relations[index] for index in indexes]
+    removed = [relations[index] for index in indexes]
     # Highest index first, so earlier removals do not shift later ones.
     document: list[JsonValue] = [
         {"op": "remove", "path": f"/relations/{index}"} for index in sorted(indexes, reverse=True)

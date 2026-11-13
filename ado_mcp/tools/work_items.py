@@ -268,7 +268,7 @@ async def wit_work_item(
 def _ids_only(reply: JsonValue) -> JsonValue:
     """Reduce a query result to `{"ids": [...], "count": n}` from `workItems[].id`."""
     items = reply.get("workItems") if isinstance(reply, dict) else None
-    ids: list[JsonValue] = [
+    ids = [
         item["id"]
         for item in (items if isinstance(items, list) else [])
         if isinstance(item, dict) and item.get("id") is not None

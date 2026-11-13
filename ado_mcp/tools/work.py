@@ -90,7 +90,7 @@ def _is_iteration(node: JsonValue) -> bool:
 
 def _exclude_iterations(nodes: list[JsonValue], excluded: frozenset[int]) -> list[JsonValue]:
     """Drop nodes whose `id` is excluded, with their children; filter children recursively."""
-    kept: list[JsonValue] = []
+    kept = []
     for node in nodes:
         if not isinstance(node, dict):
             kept.append(node)
@@ -152,7 +152,7 @@ async def _get_team_settings(client: AdoClient, label: str, project: str, team: 
         TEAM_FIELD_VALUES, label=label, method="GET", route_values=route_values
     )
     values = field_values if isinstance(field_values, dict) else {}
-    merged: dict[str, JsonValue] = {name: settings.get(name) for name in _TEAM_SETTINGS_FIELDS}
+    merged = {name: settings.get(name) for name in _TEAM_SETTINGS_FIELDS}
     merged["defaultAreaPath"] = values.get("defaultValue")
     merged["areaPathField"] = values.get("field")
     merged["areaPaths"] = values.get("values")
