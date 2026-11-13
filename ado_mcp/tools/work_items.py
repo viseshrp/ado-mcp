@@ -295,13 +295,26 @@ async def wit_work_item(
 
 
 def _ids_only(reply: JsonValue) -> JsonValue:
-    """Reduce a query result to `{"ids": [...], "count": n}` from `workItems[].id`."""
-    items = reply.get("workItems") if isinstance(reply, dict) else None
-    ids = [
-        item["id"]
-        for item in (items if isinstance(items, list) else [])
-        if isinstance(item, dict) and item.get("id") is not None
-    ]
+    """Reduce a query result to `{"ids": [...], "count": n}` of distinct work item IDs.
+
+    Flat queries list matches in `workItems`. Tree and direct-links queries list them in
+    `workItemRelations` as source/target pairs, so those IDs are collected too.
+    """
+    if not isinstance(reply, dict):
+        return {"ids": [], "count": 0}
+    candidates: list[JsonValue] = []
+    for key in ("workItems", "workItemRelations"):
+        entries = reply.get(key)
+        for entry in entries if isinstance(entries, list) else []:
+            if not isinstance(entry, dict):
+                continue
+            if key == "workItems":
+                candidates.append(entry.get("id"))
+            else:
+                for side in ("source", "target"):
+                    end = entry.get(side)
+                    candidates.append(end.get("id") if isinstance(end, dict) else None)
+    ids: list[JsonValue] = list(dict.fromkeys(item for item in candidates if item is not None))
     return {"ids": ids, "count": len(ids)}
 
 
@@ -340,7 +353,7 @@ async def wit_query(
         timePrecision: Include the time in date fields. Used by get_results and wiql.
         top: Maximum number of results, 1 to 200. Used by get_results and wiql. Defaults to 50.
         responseType: full returns the complete result (the default); ids returns only the work
-            item IDs and works for flat queries only. Used by get_results.
+            item IDs, including the source and target IDs of linked queries. Used by get_results.
         wiql: The WIQL query text, at most 32,768 characters. Required for wiql. Example: SELECT
             [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project
     """

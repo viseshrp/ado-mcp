@@ -620,6 +620,11 @@ async def _unlink(
     document: list[JsonValue] = [
         {"op": "remove", "path": f"/relations/{index}"} for index in sorted(indexes, reverse=True)
     ]
+    # The indexes come from the GET above. Testing the revision makes the PATCH fail, instead
+    # of removing a different relation, when the work item changed in between.
+    revision = work_item.get("rev") if isinstance(work_item, dict) else None
+    if isinstance(revision, int):
+        document.insert(0, {"op": "test", "path": "/rev", "value": revision})
     reply = await client.send(
         WORK_ITEM,
         label=label,
