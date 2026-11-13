@@ -32,6 +32,10 @@ feature support or a guarantee for other server versions.
 - Use Python and FastMCP with a small, typed HTTP client. Do not copy upstream
   implementation code. Preserve applicable license notices if code is later
   adapted.
+- The runtime libraries are `click` (command line), `fastmcp` (MCP server and
+  transports), `httpx2` (HTTP client), `mcp-types` (protocol types for the
+  2026-07-28 elicitation flow), `pydantic` (input and error models), and
+  `pydantic-settings` (configuration). No other runtime dependency is used.
 - Operate against the configured collection. Project and team parameters are
   supplied by the caller or optional local defaults; no company-specific
   values are built into the package.
