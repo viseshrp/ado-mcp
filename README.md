@@ -88,10 +88,18 @@ with your PAT. `--port` without `--http` is a usage error.
 | `core_get_identity_ids` | single action | read-only |
 | `core_get_current_user` | single action | read-only |
 | `work` | `list_iterations`, `list_team_iterations`, `get_team_settings`, `get_team_capacity`, `get_iteration_capacities` | read-only |
+| `wit_work_item` | `get`, `get_batch`, `list_comments`, `my`, `list_revisions`, `list_for_iteration`, `get_type` | read-only |
+| `wit_query` | `get`, `get_results`, `wiql` | read-only |
+| `wit_backlog` | `list`, `list_work_items` | read-only |
 
 `core_get_current_user` is the one tool Microsoft's server does not have. It
 returns the authenticated user's identity ID, display name, and the
 domain-qualified unique name that `System.AssignedTo` accepts.
+
+`wit_backlog` is read-only in v1.0. Microsoft's server marks it as mutating
+because of its `reorder` action, which v1.0 does not ship, so its
+reorder-only inputs (`ids`, `previousId`, `nextId`, `parentId`,
+`iterationPath`, `iterationId`) are not in the schema either.
 
 ## Behavior and safety
 
