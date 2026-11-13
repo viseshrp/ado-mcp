@@ -331,6 +331,10 @@ with the server's authorization error.
   you read. The server rejects the whole update when the revision changed, and
   the error reports `precondition_failed` with `[HTTP 412 Precondition Failed]`
   in its message.
+- `wit_work_item_link_write` `unlink` reads the work item, then removes the
+  matching links together with a `test` operation on `/rev` for the revision
+  it read. When the work item changed in between, nothing is removed and the
+  error reports `precondition_failed`. Call `unlink` again to retry.
 - Writes are sent once and never retried. After a timeout or a dropped
   connection, read the work item before trying again, because the first
   request may have succeeded.
