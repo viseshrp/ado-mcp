@@ -42,6 +42,7 @@ CI = "https://github.com/viseshrp/ado-mcp/actions"
 
 [project.scripts]
 "ado-mcp" = "ado_mcp.__main__:main"
+"ado-mcp-server" = "ado_mcp.__main__:main"
 
 [dependency-groups]
 dev = [
