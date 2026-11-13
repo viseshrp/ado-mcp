@@ -11,7 +11,7 @@ resolution-markers = [
 ]
 
 [[package]]
-name = "ado-mcp"
+name = "ado-mcp-server"
 source = { editable = "." }
 dependencies = [
     { name = "click" },

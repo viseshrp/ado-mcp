@@ -1,5 +1,5 @@
 [project]
-name = "ado-mcp"
+name = "ado-mcp-server"
 dynamic = ["version"]
 description = "Python MCP server for on-premises Azure DevOps Server and TFS."
 authors = [{ name = "Visesh Prasad", email = "11642379+viseshrp@users.noreply.github.com" }]
