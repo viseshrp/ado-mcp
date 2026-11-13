@@ -1,5 +1,6 @@
 """Server configuration, read from the environment and a local `.env` file."""
 
+from collections.abc import Mapping
 from urllib.parse import urlsplit
 
 from pydantic import SecretStr, ValidationError, field_validator
@@ -88,7 +89,22 @@ def load_settings() -> Settings:
         return Settings()
     except ValidationError as error:
         problems = "; ".join(
-            f"{ENV_PREFIX}{'.'.join(str(part) for part in item['loc']).upper()}: {item['msg']}"
+            f"{ENV_PREFIX}{'.'.join(str(part) for part in item['loc']).upper()}: {_problem(item)}"
             for item in error.errors(include_input=False, include_url=False)
         )
         raise ConfigurationError(problems) from None
+
+
+def _problem(item: Mapping[str, object]) -> str:
+    """Return a validation problem in this project's words.
+
+    A validator's own `ValueError` is reported by its message alone, without
+    pydantic's "Value error, " prefix, for example
+    `"ADO_COLLECTION_URL must start with https://"`. Other problems keep
+    pydantic's message, such as `"Field required"`.
+    """
+    context = item.get("ctx")
+    cause = context.get("error") if isinstance(context, dict) else None
+    if item.get("type") == "value_error" and cause is not None:
+        return str(cause)
+    return str(item.get("msg"))
