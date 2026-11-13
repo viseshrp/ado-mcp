@@ -14,8 +14,10 @@ declares `azure-devops-node-api` `^15.1.2`. Its 44 tools cover nine domains:
 Core (3), Work (3), Work Items (9), Repositories (11), Pipelines (6), Test
 Plans (5), Wiki (2), Search (3), and Advanced Security (2).
 
-**This repository is still a generated project scaffold.** The server, REST
-client, authentication, and tools have not been implemented. The inventory
+**v1.0 is implemented:** a FastMCP server with route discovery, API-version
+negotiation, PAT handling, and the v1.0 project-management tools, on stdio or
+loopback HTTP. Development ran without an Azure DevOps server, so no tool has
+yet run through the MCP server against a real collection. The inventory
 below records the upstream tool names, actions, and REST route families as the
 long-term parity reference; it does not mean every upstream tool is in v1.0.
 A bounded, read-only route sweep and a separately authorized disposable-write

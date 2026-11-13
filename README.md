@@ -7,11 +7,12 @@ Python MCP server for on-premises Azure DevOps Server and TFS.
 
 ## Status
 
-This repository currently contains a Python project scaffold generated from
-[viseshrp/yapc](https://github.com/viseshrp/yapc) with Cruft. The MCP server,
-Azure DevOps API client, and tools have not been implemented yet.
+v1.0 implements the tools listed below for project management on one
+Azure DevOps Server or TFS collection. No tool has run through the MCP server
+on a real collection yet. The routes were exercised earlier with direct REST
+requests, which the verification column in [Tools](#tools) records.
 
-See [PLAN.md](PLAN.md) for the intended scope, compatibility goals, and roadmap.
+See [PLAN.md](PLAN.md) for the scope, compatibility evidence, and roadmap.
 
 ## Planned scope
 
@@ -45,6 +46,51 @@ names the setting but not its value, for example:
 ```text
 Error: Invalid configuration :: ADO_PAT: Field required
 ```
+
+## Usage
+
+`ado-mcp` serves MCP on stdio by default. Register it with an MCP client, for
+example:
+
+```json
+{
+  "mcpServers": {
+    "ado": {
+      "command": "ado-mcp",
+      "env": {
+        "ADO_COLLECTION_URL": "https://ado.example.net/tfs/DefaultCollection",
+        "ADO_PAT": "<your PAT>",
+        "ADO_PROJECT": "Example Project"
+      }
+    }
+  }
+}
+```
+
+For clients that connect by URL, start it with `--http`:
+
+```bash
+ado-mcp --http              # http://127.0.0.1:8000/mcp
+ado-mcp --http --port 9000  # http://127.0.0.1:9000/mcp
+```
+
+HTTP mode listens on `127.0.0.1` only and checks the `Host` and `Origin`
+headers, which blocks web pages that reach the port through DNS rebinding. It
+has no authentication of its own, so any local process can call the tools
+with your PAT. `--port` without `--http` is a usage error.
+
+## Tools
+
+| Tool | Actions | Annotations |
+|---|---|---|
+| `core_list_projects` | single action | read-only |
+| `core_list_project_teams` | single action | read-only |
+| `core_get_identity_ids` | single action | read-only |
+| `core_get_current_user` | single action | read-only |
+
+`core_get_current_user` is the one tool Microsoft's server does not have. It
+returns the authenticated user's identity ID, display name, and the
+domain-qualified unique name that `System.AssignedTo` accepts.
 
 ## Behavior and safety
 
