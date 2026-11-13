@@ -110,7 +110,9 @@ class AdoClient:
         `label` names the tool action, for example `wit_work_item.get`, in
         errors and logs.
         """
-        path, version = await self._resolve(operation, route_values or {}, version_override, label)
+        path, version, on_fallback = await self._resolve(
+            operation, route_values or {}, version_override, label
+        )
         params = build_query(query or {})
         if version is not None:
             params[API_VERSION_PARAM] = version
@@ -122,7 +124,7 @@ class AdoClient:
             json_body=json_body,
             content_type=content_type,
             headers=headers,
-            on_fallback=path == operation.fallback_path,
+            on_fallback=on_fallback,
             version=version,
         )
 
@@ -148,23 +150,28 @@ class AdoClient:
         route_values: RouteValues,
         version_override: str | None,
         label: str,
-    ) -> tuple[str, str | None]:
-        """Return the relative path and API version for an operation."""
+    ) -> tuple[str, str | None, bool]:
+        """Return the relative path, the API version, and whether the path is the fixed fallback.
+
+        The flag is true only when the operation's `fallback_path` is used, so a 404
+        or 405 is read as "route absent" only for that fixed route, never for a
+        discovered route that happens to expand to the same text.
+        """
         requested = version_override or operation.requested_version
         if operation.area is None or operation.location_id is None or requested is None:
             # A fixed-route operation; every such entry in `operations.py` has a path.
             if operation.fallback_path is None:
                 raise UnsupportedOnServerError(_NO_ROUTE_MESSAGE.format(label=label), label=label)
-            return operation.fallback_path, operation.fallback_version
+            return operation.fallback_path, operation.fallback_version, True
         locations = await self._area_locations(operation.area, label)
         location = locations.get(operation.location_id)
         if location is not None:
             # `area` and `resource` default to the location's own names.
             values = {"area": location.area, "resource": location.resource_name, **route_values}
             path = expand_route_template(location.route_template, values)
-            return path, negotiate_api_version(requested, location)
+            return path, negotiate_api_version(requested, location), False
         if operation.fallback_path is not None:
-            return operation.fallback_path, operation.fallback_version
+            return operation.fallback_path, operation.fallback_version, True
         raise UnsupportedOnServerError(_NO_ROUTE_MESSAGE.format(label=label), label=label)
 
     async def _area_locations(self, area: str, label: str) -> dict[str, ResourceLocation]:
