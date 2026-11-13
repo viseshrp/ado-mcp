@@ -85,10 +85,13 @@ async def core_list_project_teams(
 ) -> ToolResult:
     """List a project's teams, asking for the project when none is given."""
     client = get_client(ctx)
-    resolved = await resolve_project(ctx, client, get_settings(ctx), project, _LIST_TEAMS_MESSAGE)
+    label = action_label(CORE_LIST_PROJECT_TEAMS)
+    resolved = await resolve_project(
+        ctx, client, get_settings(ctx), project, _LIST_TEAMS_MESSAGE, label=label
+    )
     reply = await client.send(
         TEAMS,
-        label=action_label(CORE_LIST_PROJECT_TEAMS),
+        label=label,
         method="GET",
         route_values={"projectId": resolved},
         query={"$mine": mine, "$top": top, "$skip": skip, "$expandIdentity": False},

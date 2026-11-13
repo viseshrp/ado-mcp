@@ -211,7 +211,7 @@ async def wit_work_item(
     # Required inputs are checked before the project is resolved, as upstream does.
     if action == "get_batch":
         batch_ids = require(ids, "ids is required for get_batch")
-        resolved = await resolve_project(ctx, client, settings, project, message)
+        resolved = await resolve_project(ctx, client, settings, project, message, label=label)
         return await _get_batch(client, label, resolved, batch_ids, fields)
     if action in ("list_comments", "list_revisions"):
         require(workItemId, f"workItemId is required for {action}")
@@ -219,7 +219,7 @@ async def wit_work_item(
         require(iterationId, "iterationId is required for list_for_iteration")
     elif action == "get_type":
         require(workItemType, "workItemType is required for get_type")
-    resolved = await resolve_project(ctx, client, settings, project, message)
+    resolved = await resolve_project(ctx, client, settings, project, message, label=label)
     page_size = top or DEFAULT_PAGE_SIZE
     if action == "list_comments":
         reply = await client.send(
@@ -297,7 +297,12 @@ async def wit_query(
     client = get_client(ctx)
     label = action_label(WIT_QUERY, action)
     resolved = await resolve_project(
-        ctx, client, get_settings(ctx), project, f"Select the Azure DevOps project for {action}."
+        ctx,
+        client,
+        get_settings(ctx),
+        project,
+        f"Select the Azure DevOps project for {action}.",
+        label=label,
     )
     if action == "get":
         query_path = require(query, "query is required for get")
@@ -352,10 +357,21 @@ async def wit_backlog(
     label = action_label(WIT_BACKLOG, action)
     purpose = _BACKLOG_PURPOSES[action]
     resolved = await resolve_project(
-        ctx, client, settings, project, f"Select the Azure DevOps project to {purpose} for."
+        ctx,
+        client,
+        settings,
+        project,
+        f"Select the Azure DevOps project to {purpose} for.",
+        label=label,
     )
     resolved_team = await resolve_team(
-        ctx, client, settings, resolved, team, f"Select the Azure DevOps team to {purpose} for."
+        ctx,
+        client,
+        settings,
+        resolved,
+        team,
+        f"Select the Azure DevOps team to {purpose} for.",
+        label=label,
     )
     route_values = {"project": resolved, "team": resolved_team}
     if action == "list":

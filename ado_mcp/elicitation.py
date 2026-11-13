@@ -25,11 +25,7 @@ from mcp_types import (
 from mcp_types.version import MODERN_PROTOCOL_VERSIONS
 
 from .client import AdoClient
-from .constants import (
-    CORE_LIST_PROJECT_TEAMS,
-    CORE_LIST_PROJECTS,
-    ELICITATION_PROJECT_LIMIT,
-)
+from .constants import ELICITATION_PROJECT_LIMIT
 from .exceptions import MissingContextError, ToolInterrupt
 from .operations import PROJECTS, TEAMS
 from .settings import Settings
@@ -51,9 +47,19 @@ _ACCEPT = "accept"
 
 
 async def resolve_project(
-    ctx: Context, client: AdoClient, settings: Settings, provided: str | None, message: str
+    ctx: Context,
+    client: AdoClient,
+    settings: Settings,
+    provided: str | None,
+    message: str,
+    *,
+    label: str,
 ) -> str:
-    """Return the project for this call, or raise `MissingContextError` or `ToolInterrupt`."""
+    """Return the project for this call, or raise `MissingContextError` or `ToolInterrupt`.
+
+    `label` is the calling tool action, so a failure while listing the choices
+    names the action the client called.
+    """
     if provided and provided.strip():
         return provided
     if settings.project:
@@ -71,7 +77,7 @@ async def resolve_project(
             return answered
     reply = await client.send(
         PROJECTS,
-        label=CORE_LIST_PROJECTS,
+        label=label,
         method="GET",
         query={
             "stateFilter": "wellFormed",
@@ -102,8 +108,13 @@ async def resolve_team(
     project: str,
     provided: str | None,
     message: str,
+    *,
+    label: str,
 ) -> str:
-    """Return the team for this call, or raise `MissingContextError` or `ToolInterrupt`."""
+    """Return the team for this call, or raise `MissingContextError` or `ToolInterrupt`.
+
+    `label` is the calling tool action, as for `resolve_project`.
+    """
     if provided and provided.strip():
         return provided
     if settings.team:
@@ -116,7 +127,7 @@ async def resolve_team(
             return answered
     reply = await client.send(
         TEAMS,
-        label=CORE_LIST_PROJECT_TEAMS,
+        label=label,
         method="GET",
         route_values={"projectId": project},
         query={"$expandIdentity": False},

@@ -219,7 +219,9 @@ async def work(
     client = get_client(ctx)
     settings = get_settings(ctx)
     label = action_label(WORK, action)
-    resolved = await resolve_project(ctx, client, settings, project, _PROJECT_MESSAGES[action])
+    resolved = await resolve_project(
+        ctx, client, settings, project, _PROJECT_MESSAGES[action], label=label
+    )
     if action == "list_iterations":
         return await _list_iterations(client, label, resolved, depth, excludedIds)
     if action == "get_iteration_capacities":
@@ -231,7 +233,7 @@ async def work(
         iteration = require(iterationId, "iterationId is required for get_team_capacity")
         return await _get_team_capacity(client, label, resolved, required_team, iteration)
     resolved_team = await resolve_team(
-        ctx, client, settings, resolved, team, _TEAM_MESSAGES[action]
+        ctx, client, settings, resolved, team, _TEAM_MESSAGES[action], label=label
     )
     if action == "list_team_iterations":
         return await _list_team_iterations(client, label, resolved, resolved_team, timeframe)

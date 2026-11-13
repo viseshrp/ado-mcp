@@ -366,6 +366,7 @@ async def wit_work_item_write(
             settings,
             project,
             "Select the Azure DevOps project to create the work item in.",
+            label=label,
         )
         return await _create(client, label, resolved, item_type, field_values)
     parent = require(parentId, "parentId is required for add_child")
@@ -377,6 +378,7 @@ async def wit_work_item_write(
         settings,
         project,
         "Select the Azure DevOps project to create child work items in.",
+        label=label,
     )
     return await _add_child(
         client, label, settings.collection_url, resolved, parent, item_type, children
@@ -454,7 +456,12 @@ async def wit_work_item_comment_write(
     label = action_label(WIT_WORK_ITEM_COMMENT_WRITE, action)
     purpose = "add a work item comment in" if action == "add" else "update the work item comment in"
     resolved = await resolve_project(
-        ctx, client, get_settings(ctx), project, f"Select the Azure DevOps project to {purpose}."
+        ctx,
+        client,
+        get_settings(ctx),
+        project,
+        f"Select the Azure DevOps project to {purpose}.",
+        label=label,
     )
     work_item_id = require(workItemId, "workItemId is required")
     comment_text = require(text, "text is required")
@@ -579,13 +586,23 @@ async def wit_work_item_link_write(
     if action == "link":
         link_updates = require(updates, "updates is required for link")
         resolved = await resolve_project(
-            ctx, client, settings, project, "Select the Azure DevOps project to link work items in."
+            ctx,
+            client,
+            settings,
+            project,
+            "Select the Azure DevOps project to link work items in.",
+            label=label,
         )
         return await _link(client, label, settings.collection_url, resolved, link_updates)
     work_item_id = require(id, "id is required for unlink")
     link_type = require(type, "type is required for unlink")
     resolved = await resolve_project(
-        ctx, client, settings, project, "Select the Azure DevOps project to unlink work items in."
+        ctx,
+        client,
+        settings,
+        project,
+        "Select the Azure DevOps project to unlink work items in.",
+        label=label,
     )
     return await _unlink(client, label, resolved, work_item_id, link_type, url)
 
