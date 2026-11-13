@@ -199,20 +199,20 @@ async def wit_work_item(
         # collection-scoped.
         work_item_id = require(id, "id is required for get")
         return await _get_work_item(client, label, project, work_item_id, fields, asOf, expand)
+    settings = get_settings(ctx)
+    message = _WORK_ITEM_PROJECT_MESSAGES[action]
     # Required inputs are checked before the project is resolved, as upstream does.
     if action == "get_batch":
         batch_ids = require(ids, "ids is required for get_batch")
-    elif action in ("list_comments", "list_revisions"):
+        resolved = await resolve_project(ctx, client, settings, project, message)
+        return await _get_batch(client, label, resolved, batch_ids, fields)
+    if action in ("list_comments", "list_revisions"):
         require(workItemId, f"workItemId is required for {action}")
     elif action == "list_for_iteration":
         require(iterationId, "iterationId is required for list_for_iteration")
     elif action == "get_type":
         require(workItemType, "workItemType is required for get_type")
-    resolved = await resolve_project(
-        ctx, client, get_settings(ctx), project, _WORK_ITEM_PROJECT_MESSAGES[action]
-    )
-    if action == "get_batch":
-        return await _get_batch(client, label, resolved, batch_ids, fields)
+    resolved = await resolve_project(ctx, client, settings, project, message)
     page_size = top or DEFAULT_PAGE_SIZE
     if action == "list_comments":
         reply = await client.send(
