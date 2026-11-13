@@ -91,6 +91,7 @@ with your PAT. `--port` without `--http` is a usage error.
 | `wit_work_item` | `get`, `get_batch`, `list_comments`, `my`, `list_revisions`, `list_for_iteration`, `get_type` | read-only |
 | `wit_query` | `get`, `get_results`, `wiql` | read-only |
 | `wit_backlog` | `list`, `list_work_items` | read-only |
+| `search_workitem` | single action | read-only |
 
 `core_get_current_user` is the one tool Microsoft's server does not have. It
 returns the authenticated user's identity ID, display name, and the
@@ -231,6 +232,10 @@ not advertise their routes, they fall back to upstream's fixed routes
 `_apis/search/workitemsearchresults` and `_apis/identities` with version
 `7.2-preview.1`. A 404 or 405 reply on a fallback route is reported as
 `unsupported_on_server`.
+
+Work-item search needs the Search service, which not every server runs. When
+`search_workitem` reports `unsupported_on_server`, `wit_query` `wiql` remains
+the way to find work items.
 
 Every request goes to `ADO_COLLECTION_URL` and keeps its path. Redirects are
 never followed: a 3xx reply is a `connection_failed` error, so the PAT cannot
