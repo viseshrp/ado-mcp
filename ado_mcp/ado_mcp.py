@@ -28,7 +28,7 @@ def _lifespan(settings: Settings) -> Lifespan:
 
 
 def create_server(settings: Settings) -> FastMCP:
-    """Build the MCP server with every v1.0 tool registered.
+    """Build the MCP server with every tool registered.
 
     Arguments are validated strictly (no `"10"` for a number), and an unexpected
     exception reaches the client only as FastMCP's generic text.
