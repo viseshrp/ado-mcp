@@ -58,7 +58,9 @@ class Settings(BaseSettings):
         parts = urlsplit(value)
         if parts.scheme != "https":
             raise ValueError(_NOT_HTTPS)
-        host = parts.hostname
+        # A trailing dot names the same DNS host ("dev.azure.com." is
+        # "dev.azure.com"), so it is removed before the cloud-host check.
+        host = (parts.hostname or "").rstrip(".")
         if not host:
             raise ValueError(_NO_HOST)
         if parts.username is not None or parts.password is not None:
