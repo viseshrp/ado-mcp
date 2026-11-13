@@ -92,7 +92,7 @@ repos:
         language: system
         args:
           - --allow-only
-          - "Apache 2.0;Apache Software License;Apache-2.0;Apache-2.0 OR BSD-2-Clause;BSD License;BSD-2-Clause;BSD-3-Clause;ISC License;ISC License (ISCL);MIT;MIT License;MIT OR Apache-2.0;Mozilla Public License 2.0 (MPL 2.0);MPL 2.0;PSF-2.0;Python Software Foundation License"
+          - "Apache 2.0;Apache Software License;Apache-2.0;Apache-2.0 OR BSD-2-Clause;BSD License;BSD-2-Clause;BSD-3-Clause;ISC License;ISC License (ISCL);MIT;MIT License;MIT OR Apache-2.0;Mozilla Public License 2.0 (MPL 2.0);MPL 2.0;PSF-2.0;Python Software Foundation License;Apache-2.0 OR BSD-3-Clause;ISC;MIT-0;The Unlicense (Unlicense)"
           - --ignore-packages
           - codespell
         files: ^pyproject\.toml$
