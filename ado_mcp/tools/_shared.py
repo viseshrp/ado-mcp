@@ -3,7 +3,7 @@
 from collections.abc import Awaitable, Callable
 import functools
 import logging
-from typing import Annotated, ParamSpec
+from typing import Annotated, ParamSpec, TypeVar
 
 from fastmcp import Context
 from fastmcp.tools import ToolResult
@@ -20,6 +20,7 @@ from ..utils import JsonValue, to_json_text
 logger = logging.getLogger(__name__)
 
 P = ParamSpec("P")
+T = TypeVar("T")
 
 # Input types shared by several tools.
 ItemId = Annotated[int, Field(ge=1)]
@@ -77,10 +78,14 @@ def reply_value(reply: JsonValue) -> JsonValue:
     return reply.get("value") if isinstance(reply, dict) else None
 
 
-def require(value: object, message: str) -> None:
-    """Raise `InvalidInputError(message)` when a required input is `None`, `0`, `""`, or `[]`."""
+def require(value: T | None, message: str) -> T:
+    """Return a required input, or raise `InvalidInputError(message)` when it is missing.
+
+    Missing means `None`, `0`, `""`, or an empty list, as upstream's falsy checks.
+    """
     if not value:
         raise InvalidInputError(message)
+    return value
 
 
 def ado_tool(

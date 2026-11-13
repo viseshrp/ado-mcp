@@ -10,7 +10,7 @@ from .client import AdoClient
 from .constants import CLIENT_KEY, HTTP_HOST, HTTP_PATH, SERVER_NAME, SETTINGS_KEY
 from .content_safety import ResponseBoundaryMiddleware
 from .settings import Settings
-from .tools import core
+from .tools import core, work
 
 
 def _lifespan(settings: Settings) -> Lifespan:
@@ -41,7 +41,8 @@ def create_server(settings: Settings) -> FastMCP:
         mask_error_details=True,
         strict_input_validation=True,
     )
-    core.register(mcp)
+    for module in (core, work):
+        module.register(mcp)
     return mcp
 
 

@@ -87,6 +87,7 @@ with your PAT. `--port` without `--http` is a usage error.
 | `core_list_project_teams` | single action | read-only |
 | `core_get_identity_ids` | single action | read-only |
 | `core_get_current_user` | single action | read-only |
+| `work` | `list_iterations`, `list_team_iterations`, `get_team_settings`, `get_team_capacity`, `get_iteration_capacities` | read-only |
 
 `core_get_current_user` is the one tool Microsoft's server does not have. It
 returns the authenticated user's identity ID, display name, and the
