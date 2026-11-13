@@ -35,8 +35,13 @@ MARKDOWN_COMMENTS_API_VERSION = "7.2-preview.4"
 DIRECT_CALL_API_VERSION = "7.2-preview.1"
 JSON_PATCH_CONTENT_TYPE = "application/json-patch+json"
 READ_CONSISTENCY_HEADER = ("X-VSS-ReadConsistencyLevel", "Eventual")
+# Text formats accepted by work-item fields and comments.
+MARKDOWN_FORMAT = "Markdown"
+HTML_FORMAT = "Html"
 # Numeric values of the comment API's `format` query parameter.
-COMMENT_FORMAT_CODES = MappingProxyType({"Markdown": 0, "Html": 1})
+COMMENT_FORMAT_CODES = MappingProxyType({MARKDOWN_FORMAT: 0, HTML_FORMAT: 1})
+# Relative REST path of a work item, used in relation URLs.
+WORK_ITEM_URL_PATH = "{project}/_apis/wit/workItems/{id}"
 
 # Tool annotation sets, matching upstream `src/shared/tool-annotations.ts`.
 READ_ONLY_ANNOTATIONS = MappingProxyType(
