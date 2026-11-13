@@ -1,4 +1,5 @@
 from fastmcp import Client
+from mcp_types import ToolAnnotations
 import pytest
 
 from ado_mcp.utils import JsonValue
@@ -22,6 +23,26 @@ WRITE_TOOLS: set[str] = {
     "wit_work_item_comment_write",
     "wit_work_item_link_write",
 }
+# Inputs that only the deferred actions (reorder, pull-request and artifact links) used.
+DROPPED_INPUTS: dict[str, set[str]] = {
+    "wit_backlog": {"ids", "previousId", "nextId", "parentId", "iterationPath", "iterationId"},
+    "wit_work_item_link_write": {
+        "projectId",
+        "repositoryId",
+        "pullRequestId",
+        "workItemId",
+        "pullRequestProjectId",
+        "artifactUri",
+        "branchName",
+        "commitId",
+        "buildId",
+        "wikiId",
+        "pageId",
+        "pagePath",
+        "linkType",
+        "comment",
+    },
+}
 ACTION_COUNTS: dict[str, int] = {
     "work": 5,
     "wit_work_item": 7,
@@ -33,15 +54,31 @@ ACTION_COUNTS: dict[str, int] = {
 }
 
 
+def _hints(annotations: ToolAnnotations) -> tuple[bool | None, ...]:
+    """The four annotation hints: read-only, destructive, idempotent, open-world."""
+    return (
+        annotations.read_only_hint,
+        annotations.destructive_hint,
+        annotations.idempotent_hint,
+        annotations.open_world_hint,
+    )
+
+
 async def test_server_registers_the_v1_tools_with_their_actions(mcp_client: Client) -> None:
     tools = {tool.name: tool for tool in await mcp_client.list_tools()}
 
     assert set(tools) == READ_ONLY_TOOLS | WRITE_TOOLS
     for name, count in ACTION_COUNTS.items():
         assert len(tools[name].input_schema["properties"]["action"]["enum"]) == count, name
-    # Inputs of the deferred actions (reorder, pull-request and artifact links) are absent.
-    assert "ids" not in tools["wit_backlog"].input_schema["properties"]
-    assert "pullRequestId" not in tools["wit_work_item_link_write"].input_schema["properties"]
+
+
+async def test_inputs_of_the_deferred_actions_are_absent_from_the_schemas(
+    mcp_client: Client,
+) -> None:
+    tools = {tool.name: tool for tool in await mcp_client.list_tools()}
+
+    for name, dropped in DROPPED_INPUTS.items():
+        assert dropped.isdisjoint(tools[name].input_schema["properties"]), name
 
 
 async def test_server_marks_read_tools_read_only_and_write_tools_mutating(
@@ -50,11 +87,9 @@ async def test_server_marks_read_tools_read_only_and_write_tools_mutating(
     tools = {tool.name: tool for tool in await mcp_client.list_tools()}
 
     for name in READ_ONLY_TOOLS:
-        hints = tools[name].annotations
-        assert (hints.read_only_hint, hints.destructive_hint) == (True, False), name
+        assert _hints(tools[name].annotations) == (True, False, True, True), name
     for name in WRITE_TOOLS:
-        hints = tools[name].annotations
-        assert (hints.read_only_hint, hints.destructive_hint) == (False, True), name
+        assert _hints(tools[name].annotations) == (False, True, False, True), name
 
 
 async def test_every_result_text_block_is_wrapped_once_with_a_fresh_nonce(

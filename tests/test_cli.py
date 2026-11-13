@@ -36,7 +36,7 @@ def test_version(options: list[str]) -> None:
 def test_port_requires_http() -> None:
     result = CliRunner().invoke(cli.main, ["--port", "9000"])
 
-    assert result.exit_code != 0
+    assert result.exit_code == 2
     assert "--port requires --http" in result.output
 
 

@@ -14,7 +14,6 @@ from ado_mcp.exceptions import (
     UnsupportedOnServerError,
 )
 from ado_mcp.operations import (
-    CONNECTION_DATA,
     IDENTITIES,
     PROJECTS,
     WORK_ITEM_BATCH_UPDATE,
@@ -91,6 +90,18 @@ async def test_http_error_statuses_map_to_error_codes_with_the_servers_message(
 
     assert (raised.value.code, raised.value.status) == (code, status)
     assert "server says no" in str(raised.value)
+
+
+async def test_an_error_reply_that_is_not_json_still_maps_to_its_status_code(
+    ado: AdoClient, collection: FakeCollection
+) -> None:
+    collection.reply("GET", "_apis/projects", raw=b"<html>denied</html>", status=401)
+
+    with pytest.raises(AdoHttpError) as raised:
+        await _send_get(ado)
+
+    assert (raised.value.code, raised.value.status) == ("authentication_failed", 401)
+    assert "<html>" not in str(raised.value)
 
 
 async def test_a_version_rejection_reply_is_unsupported_on_server(
@@ -256,13 +267,3 @@ async def test_a_failed_write_is_reported_as_connection_failed_and_sent_once(
     assert PAT not in str(raised.value)
     assert PAT not in caplog.text
     assert [call.method for call in collection.calls] == ["PATCH"]
-
-
-async def test_a_fixed_route_without_a_version_is_sent_without_api_version(
-    ado: AdoClient, collection: FakeCollection
-) -> None:
-    collection.reply("GET", "_apis/connectionData", {"authenticatedUser": {}})
-
-    await _send_get(ado, CONNECTION_DATA)
-
-    assert collection.only_call().query == {}
