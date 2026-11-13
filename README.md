@@ -14,12 +14,18 @@ requests, which the verification column in [Tools](#tools) records.
 
 See [PLAN.md](PLAN.md) for the scope, compatibility evidence, and roadmap.
 
-## Planned scope
+## Install and requirements
 
-- Support Azure DevOps Server/TFS with a configurable collection URL and optional project/team.
-- Read the personal access token from `ADO_PAT`; keep TLS verification enabled.
-- Provide tools for upstream Microsoft Azure DevOps MCP features that have on-prem API equivalents.
-- Omit cloud-only tools and features that have no on-prem equivalent.
+`ado-mcp` needs Python 3.11 or newer on Linux, Windows, or macOS, network
+access to your collection over `https`, and a personal access token (PAT).
+Install it from a clone of this repository with
+[uv](https://docs.astral.sh/uv/):
+
+```bash
+uv tool install .
+```
+
+This puts the `ado-mcp` command on your `PATH`.
 
 ## Configuration
 
@@ -81,20 +87,32 @@ with your PAT. `--port` without `--http` is a usage error.
 
 ## Tools
 
-| Tool | Actions | Annotations |
-|---|---|---|
-| `core_list_projects` | single action | read-only |
-| `core_list_project_teams` | single action | read-only |
-| `core_get_identity_ids` | single action | read-only |
-| `core_get_current_user` | single action | read-only |
-| `work` | `list_iterations`, `list_team_iterations`, `get_team_settings`, `get_team_capacity`, `get_iteration_capacities` | read-only |
-| `wit_work_item` | `get`, `get_batch`, `list_comments`, `my`, `list_revisions`, `list_for_iteration`, `get_type` | read-only |
-| `wit_query` | `get`, `get_results`, `wiql` | read-only |
-| `wit_backlog` | `list`, `list_work_items` | read-only |
-| `search_workitem` | single action | read-only |
-| `wit_work_item_write` | `create`, `update`, `update_batch`, `add_child` | mutating |
-| `wit_work_item_comment_write` | `add`, `update` | mutating |
-| `wit_work_item_link_write` | `link`, `unlink` | mutating |
+v1.0 has 12 tools with 30 actions. A tool without an `action` input counts as
+one action. The verification column describes earlier direct REST requests
+recorded in [PLAN.md](PLAN.md), which used fixed routes and versions and no
+MCP tool. None of these tools has run through the MCP server on a real
+collection.
+
+| Tool | Actions | Annotations | Verification |
+|---|---|---|---|
+| `core_list_projects` | single action | read-only | route seen in an earlier direct REST probe |
+| `core_list_project_teams` | single action | read-only | route seen in an earlier direct REST probe |
+| `core_get_identity_ids` | single action | read-only | route seen in an earlier direct REST probe |
+| `core_get_current_user` | single action | read-only | route seen in an earlier direct REST probe |
+| `work` | `list_iterations` | read-only | not tested (the probe used a different route than upstream sends) |
+| `work` | `list_team_iterations`, `get_team_settings`, `get_team_capacity` | read-only | route seen in an earlier direct REST probe |
+| `work` | `get_iteration_capacities` | read-only | not tested (the probe returned HTTP 404) |
+| `wit_work_item` | `get`, `get_batch`, `list_comments`, `my`, `list_revisions`, `list_for_iteration`, `get_type` | read-only | route seen in an earlier direct REST probe |
+| `wit_query` | `get`, `get_results`, `wiql` | read-only | route seen in an earlier direct REST probe |
+| `wit_backlog` | `list`, `list_work_items` | read-only | route seen in an earlier direct REST probe |
+| `search_workitem` | single action | read-only | route seen in an earlier direct REST probe |
+| `wit_work_item_write` | `create`, `update`, `update_batch` | mutating | route seen in an earlier direct REST probe |
+| `wit_work_item_write` | `add_child` | mutating | not tested (child creation through `$batch` was not recorded) |
+| `wit_work_item_comment_write` | `add`, `update` | mutating | route seen in an earlier direct REST probe |
+| `wit_work_item_link_write` | `link`, `unlink` | mutating | route seen in an earlier direct REST probe |
+
+Tool, action, and input names match Microsoft's Azure DevOps MCP server
+(version 2.11.0), so prompts written for it carry over.
 
 `core_get_current_user` is the one tool Microsoft's server does not have. It
 returns the authenticated user's identity ID, display name, and the
@@ -104,6 +122,16 @@ domain-qualified unique name that `System.AssignedTo` accepts.
 because of its `reorder` action, which v1.0 does not ship, so its
 reorder-only inputs (`ids`, `previousId`, `nextId`, `parentId`,
 `iterationPath`, `iterationId`) are not in the schema either.
+`wit_work_item_link_write` likewise omits the inputs of the deferred
+`link_to_pull_request` and `add_artifact_link` actions: `projectId`,
+`repositoryId`, `pullRequestId`, `workItemId`, `pullRequestProjectId`,
+`artifactUri`, `branchName`, `commitId`, `buildId`, `wikiId`, `pageId`,
+`pagePath`, `linkType`, and `comment`.
+
+Inputs are validated strictly. Microsoft's server accepts `"10"` where a
+number is expected; this server returns `invalid_input` instead. Unknown input
+names and unknown actions are `invalid_input` too, and the error lists each
+failing field.
 
 ## Behavior and safety
 
@@ -151,6 +179,33 @@ random nonce, as Microsoft's server does:
 The label names the source: `Azure DevOps core`, `work`, `work-items`, or
 `search`, with `wiql query results` for `wit_query` `wiql` and
 `work item search results` for `search_workitem`.
+
+### Annotations
+
+Each tool carries MCP tool annotations, with the same values as Microsoft's
+server:
+
+| Set | Tools | `readOnlyHint` | `destructiveHint` | `idempotentHint` | `openWorldHint` |
+|---|---|---|---|---|---|
+| read-only | the nine read tools | true | false | true | true |
+| mutating | the three `*_write` tools | false | true | false | true |
+
+There is no read-only switch. Use a read-only PAT, or a client that asks
+before calling a mutating tool, to keep the server from writing.
+
+### Limits
+
+- `top` accepts at most 200; `ids`, and the distinct work items in
+  `update_batch` and `link`, are capped at 200; `add_child` takes at most 50
+  items; `wiql` is at most 32,768 characters.
+- Every reply, including route-discovery replies, is capped at 2 MiB while it
+  streams.
+
+Over a limit, the tool returns `invalid_input` or `response_too_large`.
+Nothing is cut silently. Actions without paging, such as `list_iterations`,
+backlog reads, `get_type`, and `wit_query` `get`, are bounded only by the
+reply cap; lower `depth`, name fewer fields, or narrow the query when they hit
+it.
 
 ## Errors
 
@@ -261,8 +316,8 @@ project and team permissions.
 | Work items, queries, iterations, backlogs, capacity | Work Items: Read | Work Items: Read & Write for `wit_work_item_write`, `wit_work_item_comment_write`, and `wit_work_item_link_write` |
 | Work-item search | Work Items: Read and access to the Search service | None |
 
-A read-only PAT is enough for every read-only tool, and the write tools then
-fail with `permission_denied`.
+A read-only PAT is enough for every read-only tool; the write tools then fail
+with the server's authorization error.
 
 ## Safe-write guidance
 
@@ -281,6 +336,29 @@ fail with `permission_denied`.
   `7.2-preview.4`. On a server that offers a lower version, a Markdown comment
   fails with `unsupported_on_server`; pass `format: "Html"` instead. Html
   comments are then sent without the `format` parameter.
+
+## Known limits
+
+| Decision | Why it meets v1.0 | Known limit | Revisit when |
+|---|---|---|---|
+| HTTP mode binds to loopback only | Clients that connect by URL run on the same machine | No shared or remote use; any local process can use the PAT | Someone needs one server shared between machines, which needs an authentication design |
+| No read-only switch | The server enforces PAT permissions, and annotations let clients confirm writes | A write-capable PAT exposes the write tools | A user reports unwanted writes, or asks for a read-only server with a write-capable PAT |
+| Replies pass through unmodelled | Server versions and custom fields vary, and upstream does the same | Callers get no typed reply structure | A consumer needs typed replies and an official machine-readable API description exists |
+| Markdown comments need comment API `7.2-preview.4` | That is the version upstream sends with a `format` parameter | Servers that negotiate lower take Html only, and Markdown is the default, so they need `format: "Html"` on every comment | A real server shows a lower version that accepts `format` |
+| One collection per server process | The configuration names one collection | No multi-collection use | A user needs several collections in one client session |
+| `https` only | The PAT must not travel unencrypted | An `http`-only server cannot be used | A user has an `http`-only server and accepts the risk |
+| `$batch` keeps fixed version `5.0` | No SDK publishes a discovery location for it | `update_batch`, `add_child`, and `link` need Azure DevOps Server 2019 or newer | A user on TFS 2018 or older needs them |
+| Search and identity lookup fall back to `7.2-preview.1` | Their discovery area names are unconfirmed, and the fixed route worked in the earlier probe | On the fallback route they work only where the server accepts 7.2 | A real server shows whether the areas publish the locations |
+| No lock on the discovery cache | Duplicate discovery is idempotent | Two first calls at once send two `OPTIONS` requests | Profiling shows it matters |
+| Strict inputs, no coercion | Strict validation was chosen over upstream's coercion | A client that sends `"10"` for a number gets an error | Clients in use send numbers as strings |
+| Page cap 200, reply cap 2 MiB | Bounds context use; an earlier probe exceeded 2 MiB | Large queries need a smaller `top`, `depth`, or field list | Users hit the caps on ordinary queries |
+| The picker lists the first 100 projects | Upstream does the same | Later projects can be typed but not picked | A collection with more than 100 projects needs the picker |
+| No retries | Writes must not be replayed; one rule covers every call | A transient failure reaches the caller | Read-only calls fail often on a flaky network |
+| `asOf` is a plain string | Avoids strict date-time coercion questions in the framework | The schema lacks `format: date-time` | A client needs the format hint |
+| Deferred-only inputs dropped; `wit_backlog` read-only | No input does nothing, and the tool no longer writes | Two tool schemas differ from upstream | The deferred actions ship |
+| API version in the query string | Microsoft documents it, and the earlier probes used it | Differs from the SDK's `Accept` header form | A server is found that honors only the header |
+
+No latency, memory, or cost improvement is claimed for any of these choices.
 
 ## Development
 
