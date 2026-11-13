@@ -11,6 +11,9 @@ CLOUD_HOST_SUFFIXES = ("dev.azure.com", "visualstudio.com")
 
 # Server and transports
 SERVER_NAME = "ado-mcp"
+# Keys of the lifespan context that tools read the client and settings from.
+CLIENT_KEY = "client"
+SETTINGS_KEY = "settings"
 HTTP_HOST = "127.0.0.1"
 DEFAULT_HTTP_PORT = 8000
 HTTP_PATH = "/mcp"
