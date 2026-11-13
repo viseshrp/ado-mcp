@@ -14,6 +14,7 @@ from .constants import (
     HTTP_ERROR_CODES,
     INVALID_RESPONSE_CODE,
 )
+from .utils import to_json_text
 
 
 class CustomError(Exception):
@@ -53,6 +54,10 @@ class ErrorPayload(BaseModel):
     operation: str | None = None
     status: int | None = None
     details: list[ErrorDetail] | None = None
+
+    def to_text(self) -> str:
+        """Render the payload as the error result text: `{"error": {...}}`, indented."""
+        return to_json_text({"error": self.model_dump(exclude_none=True)})
 
 
 class AdoMcpError(CustomError):

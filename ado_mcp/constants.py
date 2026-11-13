@@ -94,7 +94,7 @@ TOOL_DOMAINS = MappingProxyType(
     }
 )
 # Source labels that upstream sets explicitly, keyed by (tool, action).
-SOURCE_LABEL_OVERRIDES = MappingProxyType(
+SOURCE_LABEL_OVERRIDES: MappingProxyType[tuple[str, str | None], str] = MappingProxyType(
     {
         (WIT_QUERY, "wiql"): "wiql query results",
         (SEARCH_WORKITEM, None): "work item search results",
