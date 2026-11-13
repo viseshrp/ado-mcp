@@ -87,8 +87,8 @@ feature support or a guarantee for other server versions.
 - Inputs used only by deferred actions are not in the schemas.
 - A comment may be sent as Markdown only when discovery negotiates comment API
   `7.2-preview.4`.
-- The scaffold placeholder `do_stuff` is gone. The two scaffold tests that
-  assert it fail; rewriting them belongs to the test phase.
+- The scaffold placeholder `do_stuff` is gone. Its tests are replaced by a
+  command-line test of the `--port` rule.
 - No tool has run against a real server. Checks that need one are listed as
   pending under "v1.0 verification status".
 - The `pip-licenses` allowlist includes `Apache-2.0 OR BSD-3-Clause`, `ISC`,
