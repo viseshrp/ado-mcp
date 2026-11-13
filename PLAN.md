@@ -38,6 +38,53 @@ feature support or a guarantee for other server versions.
   transports), `httpx2` (HTTP client), `mcp-types` (protocol types for the
   2026-07-28 elicitation flow), `pydantic` (input and error models), and
   `pydantic-settings` (configuration). No other runtime dependency is used.
+
+### v1.0 design decisions
+
+These decisions were made while planning v1.0 and are implemented:
+
+- Scope is roadmap steps 1 to 4 below: 12 tools with 30 actions. Earlier
+  drafts said 13 tools and 29 actions; the tool table they pointed to lists
+  12 and 30, and that count was confirmed.
+- `core_get_current_user` is added, read-only, backed by
+  `GET C/_apis/connectionData`. It is the one tool upstream lacks.
+- Routes and API versions are discovered and negotiated at runtime, as
+  `azure-devops-node-api` does; a fixed version map and pinned-oldest versions
+  were rejected. Every call whose area publishes a location goes through
+  discovery, including comment add and update, which upstream sends directly.
+  Calls with no published location (`connectionData`, `$batch`) keep a fixed
+  version. Work-item search and identity lookup discover first and fall back
+  to upstream's fixed route and `7.2-preview.1`.
+- A missing project or team comes from the settings default, then an MCP
+  picker on both protocol eras where the client supports elicitation, then an
+  explicit error.
+- Every tool result is wrapped in untrusted-content delimiters, as upstream.
+- `work.get_iteration_capacities` is included and labelled "not tested",
+  because it returned HTTP 404 on the tested collection.
+- Transports: stdio by default; `--http` serves
+  `http://127.0.0.1:8000/mcp`, `--port` changes the port, and there is no host
+  option.
+- Settings load from the environment, then `.env`, through
+  `pydantic-settings`. `ADO_COLLECTION_URL` must use `https`.
+- There is no read-only switch; safety comes from PAT permissions and tool
+  annotations. `wit_backlog` is read-only because `reorder` is deferred.
+- `pydantic` strictly validates tool inputs, settings, and this project's
+  error payloads. Replies from Azure DevOps pass through unmodelled, apart
+  from the trimming upstream applies.
+- At most 200 items per page and 2 MiB per reply; over a limit the tool
+  returns an error and never truncates.
+- Inputs used only by deferred actions are dropped from the schemas.
+- A comment may be sent as Markdown only when discovery negotiates comment API
+  `7.2-preview.4`.
+- The scaffold placeholder is removed. Two scaffold tests fail until the test
+  phase rewrites them.
+- No live verification ran during development: the server was not available.
+  Checks that need a real server are recorded as pending below.
+- The `pip-licenses` allowlist gains `Apache-2.0 OR BSD-3-Clause`, `ISC`,
+  `MIT-0`, and `The Unlicense (Unlicense)` for the runtime dependency tree.
+- `README.md` and this plan are updated with the implementation; the
+  changelog is not. Delivery is one branch with small commits and one pull
+  request.
 - Operate against the configured collection. Project and team parameters are
   supplied by the caller or optional local defaults; no company-specific
   values are built into the package.
@@ -235,6 +282,16 @@ The source is `Azure DevOps {domain}` upper-cased, except `wit_query` `wiql`
 v1.0 implements the same wrapper in one FastMCP middleware, so each block is
 wrapped exactly once.
 
+### Tool annotations
+
+Upstream declares three annotation sets (`src/shared/tool-annotations.ts`):
+read-only (`readOnlyHint` true, `destructiveHint` false, `idempotentHint`
+true, `openWorldHint` true), mutating (false, true, false, true), and additive
+(false, false, false, true). v1.0 uses two of them: the nine read tools are
+read-only and the three write tools are mutating. No v1.0 tool needs the
+additive set, so it is not defined. `wit_backlog` is read-only in v1.0;
+upstream marks it mutating only because of its deferred `reorder` action.
+
 ## Upstream tool inventory and on-prem REST mapping
 
 All paths below are relative to `C`. `V(endpoint)` means the version selected
@@ -274,6 +331,21 @@ reviewers, and creators.
 | `wit_work_item_write` | `create`: `POST C/{P}/_apis/wit/workItems/${type}` with JSON Patch; `update`: `PATCH C/{P}/_apis/wit/workItems/{W}`; `update_batch` and `add_child`: `PATCH C/_apis/wit/$batch` with per-item JSON Patch requests. Preserve markdown field-format metadata, parent relations, batch limits, and revision/concurrency behavior. |
 | `wit_work_item_comment_write` | `add`: `POST C/{P}/_apis/wit/workItems/{W}/comments`; `update`: `PATCH C/{P}/_apis/wit/workItems/{W}/comments/{commentId}`. Preserve Markdown/HTML format and mention resolution where available. This endpoint/version is compatibility-gated. |
 | `wit_work_item_link_write` | `link`, `unlink`, `link_to_pull_request`, and `add_artifact_link` mutate the work item's relations through `PATCH C/{P}/_apis/wit/workItems/{W}` or batched `PATCH C/_apis/wit/$batch`. Use relation reads before unlinking; preserve relation types, artifact URIs, and comments. |
+
+v1.0 notes for this domain:
+
+- `wit_backlog` ships `list` and `list_work_items` only and is annotated
+  read-only. Its reorder-only inputs (`ids`, `previousId`, `nextId`,
+  `parentId`, `iterationPath`, `iterationId`) are not in the schema.
+- `wit_work_item_link_write` ships `link` and `unlink`. The inputs used only by
+  `link_to_pull_request` and `add_artifact_link` (`projectId`, `repositoryId`,
+  `pullRequestId`, `workItemId`, `pullRequestProjectId`, `artifactUri`,
+  `branchName`, `commitId`, `buildId`, `wikiId`, `pageId`, `pagePath`,
+  `linkType`, `comment`) are not in the schema.
+- Comment add and update send the `format` query parameter as a number:
+  `0` for Markdown and `1` for Html, as upstream does. v1.0 sends it only when
+  discovery negotiates comment API `7.2-preview.4`.
+- The attachment tools are not in v1.0.
 
 ### Repositories — 11 tools
 
@@ -660,7 +732,35 @@ The latest authorized live test created and deleted five disposable work
 items. No existing work item was targeted for a write, and no ADO work item
 was used to track this repository plan.
 
+### v1.0 verification status
+
+v1.0 was developed without an Azure DevOps server. Its server-free checks ran
+against the MCP server itself: startup on stdio and loopback HTTP, the tool
+list, settings validation, input validation, the untrusted-content wrapper,
+error mapping for an unreachable host, and the absence of the PAT from
+results and logs. The records above come from direct REST requests made
+before any tool existed; they show that routes responded, not that the tools
+work.
+
+These checks need a real Azure DevOps Server collection and are pending:
+
+- the discovery `OPTIONS` reply shape for `core`, `wit`, `work`, `search`,
+  and `IMS`, and whether `search` and `IMS` publish their locations;
+- negotiation against real released and maximum versions;
+- each of the 30 actions' success path and reply shaping;
+- the project and team picker on a handshake-era client and on a 2026-07-28
+  client;
+- paging and continuation tokens;
+- the Markdown comment rule on a server below and at `7.2-preview.4`;
+- real 401, 403, 404, 409, 412, and version-error replies;
+- a real redirect and a real reply above 2 MiB;
+- write behavior, including that a timed-out write is not replayed;
+- install and startup on Python 3.15.
+
 ## Implementation roadmap
+
+Steps 1 to 4 are implemented in v1.0. Their live verification against a real
+collection is pending; see "v1.0 verification status".
 
 1. **Configuration and transport:** implement validated collection URL
    handling, raw `ADO_PAT` Basic auth, TLS verification, bounded timeouts,
