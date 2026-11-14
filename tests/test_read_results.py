@@ -27,7 +27,14 @@ async def test_identity_lookup_returns_only_id_display_name_and_descriptor(
         pytest.param(
             {"Domain": {"$value": "CORP"}, "Account": {"$value": "ana"}}, "CORP\\ana", id="domain"
         ),
-        pytest.param({"Account": {"$value": "ana"}}, "ana", id="account-only"),
+        pytest.param(
+            {"Domain": {"$value": "CORP"}, "Account": {"$value": "CORP\\ana"}},
+            "CORP\\ana",
+            id="already-qualified-account",
+        ),
+        pytest.param(
+            {"Account": {"$value": "ana@example.net"}}, "ana@example.net", id="email-account"
+        ),
     ],
 )
 async def test_current_user_has_the_unique_name_that_assigned_to_accepts(
@@ -42,6 +49,105 @@ async def test_current_user_has_the_unique_name_that_assigned_to_accepts(
     output = await call_tool(mcp_client, "core_get_current_user")
 
     assert output.data == {"id": "u1", "displayName": "Ana", "uniqueName": unique_name}
+    assert collection.only_call().path == "_apis/connectionData"
+
+
+@pytest.mark.parametrize("properties", [{"Account": {"$value": "ana"}}, {}])
+async def test_current_user_resolves_incomplete_properties_by_exact_identity_id(
+    mcp_client: Client, collection: FakeCollection, properties: dict[str, JsonValue]
+) -> None:
+    collection.reply(
+        "GET",
+        "_apis/connectionData",
+        {"authenticatedUser": {"id": "u1", "providerDisplayName": "Ana", "properties": properties}},
+    )
+    collection.reply(
+        "GET",
+        "_apis/identities",
+        {
+            "value": [
+                {
+                    "id": "another-user",
+                    "properties": {
+                        "Domain": {"$value": "OTHER"},
+                        "Account": {"$value": "ana"},
+                    },
+                },
+                {
+                    "id": "u1",
+                    "properties": {
+                        "Domain": {"$value": "CORP"},
+                        "Account": {"$value": "ana"},
+                    },
+                },
+            ]
+        },
+    )
+
+    output = await call_tool(mcp_client, "core_get_current_user")
+
+    assert output.is_error is False
+    assert output.data == {"id": "u1", "displayName": "Ana", "uniqueName": "CORP\\ana"}
+    lookup = collection.work_calls()[1]
+    assert lookup.path == "_apis/identities"
+    assert lookup.query["identityIds"] == "u1"
+    assert "searchFilter" not in lookup.query
+
+
+@pytest.mark.parametrize(
+    "identities",
+    [
+        pytest.param([], id="missing-identity"),
+        pytest.param(
+            [
+                {
+                    "id": "another-user",
+                    "properties": {
+                        "Domain": {"$value": "OTHER"},
+                        "Account": {"$value": "ana"},
+                    },
+                }
+            ],
+            id="different-identity",
+        ),
+        pytest.param(
+            [{"id": "u1", "properties": {"Account": {"$value": "ana"}}}],
+            id="unqualified-account",
+        ),
+    ],
+)
+async def test_current_user_reports_an_error_instead_of_an_unverified_bare_account(
+    mcp_client: Client, collection: FakeCollection, identities: list[JsonValue]
+) -> None:
+    collection.reply(
+        "GET",
+        "_apis/connectionData",
+        {"authenticatedUser": {"id": "u1", "properties": {"Account": {"$value": "ana"}}}},
+    )
+    collection.reply("GET", "_apis/identities", {"value": identities})
+
+    output = await call_tool(mcp_client, "core_get_current_user")
+
+    assert output.is_error is True
+    assert output.data["error"]["code"] == "invalid_response"
+    assert output.data["error"]["operation"] == "core_get_current_user"
+
+
+async def test_current_user_propagates_identity_lookup_permission_errors(
+    mcp_client: Client, collection: FakeCollection
+) -> None:
+    collection.reply(
+        "GET",
+        "_apis/connectionData",
+        {"authenticatedUser": {"id": "u1", "properties": {"Account": {"$value": "ana"}}}},
+    )
+    collection.reply("GET", "_apis/identities", {"message": "Identity read denied"}, status=403)
+
+    output = await call_tool(mcp_client, "core_get_current_user")
+
+    assert output.is_error is True
+    assert output.data["error"]["code"] == "permission_denied"
+    assert output.data["error"]["operation"] == "core_get_current_user"
 
 
 async def test_project_name_filter_matches_a_substring_ignoring_case(

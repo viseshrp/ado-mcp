@@ -15,7 +15,8 @@ from ..constants import (
     READ_ONLY_ANNOTATIONS,
 )
 from ..elicitation import resolve_project
-from ..operations import CONNECTION_DATA, PROJECTS, TEAMS
+from ..exceptions import AdoHttpError
+from ..operations import CONNECTION_DATA, IDENTITIES, PROJECTS, TEAMS
 from ..utils import JsonValue
 from ._shared import (
     Skip,
@@ -35,6 +36,7 @@ _NO_PROJECTS = "No projects found"
 _NO_TEAMS = "No teams found"
 _NO_IDENTITIES = "No identities found"
 _NO_USER = "No authenticated user found"
+_NO_ASSIGNABLE_USER = "The authenticated identity has no domain-qualified account or email address."
 
 
 @ado_tool
@@ -153,23 +155,46 @@ def _property_value(properties: JsonValue, name: str) -> str | None:
     return value if isinstance(value, str) else None
 
 
+def _unique_name(properties: JsonValue) -> str | None:
+    """Return an assignment-ready account, never an unqualified directory account."""
+    account = _property_value(properties, "Account")
+    if not account:
+        return None
+    if "\\" in account or "@" in account:
+        return account
+    domain = _property_value(properties, "Domain")
+    return f"{domain}\\{account}" if domain else None
+
+
 @ado_tool
 async def core_get_current_user(ctx: Context) -> ToolResult:
     """Return the authenticated user's ID, display name, and assignable unique name."""
-    reply = await get_client(ctx).send(
-        CONNECTION_DATA, label=action_label(CORE_GET_CURRENT_USER), method="GET"
-    )
+    client = get_client(ctx)
+    label = action_label(CORE_GET_CURRENT_USER)
+    reply = await client.send(CONNECTION_DATA, label=label, method="GET")
     user = reply.get("authenticatedUser") if isinstance(reply, dict) else None
-    if not isinstance(user, dict) or not user.get("id"):
+    if not isinstance(user, dict):
         return plain_error(_NO_USER)
-    properties = user.get("properties")
-    domain = _property_value(properties, "Domain")
-    account = _property_value(properties, "Account")
-    # System.AssignedTo accepts the domain-qualified account, e.g. "CORP\\ana".
-    unique_name = f"{domain}\\{account}" if domain and account else account
+    user_id = user.get("id")
+    if not isinstance(user_id, str) or not user_id:
+        return plain_error(_NO_USER)
+    unique_name = _unique_name(user.get("properties"))
+    if unique_name is None:
+        # connectionData can omit Domain; resolve only this authenticated identity.
+        reply = await client.send(
+            IDENTITIES, label=label, method="GET", query={"identityIds": user_id}
+        )
+        identities = reply_value(reply)
+        if isinstance(identities, list):
+            for identity in identities:
+                if isinstance(identity, dict) and identity.get("id") == user_id:
+                    unique_name = _unique_name(identity.get("properties"))
+                    break
+    if unique_name is None:
+        raise AdoHttpError(_NO_ASSIGNABLE_USER, label=label, status=200)
     return json_result(
         {
-            "id": user.get("id"),
+            "id": user_id,
             "displayName": user.get("providerDisplayName") or user.get("customDisplayName"),
             "uniqueName": unique_name,
         }

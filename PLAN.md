@@ -16,8 +16,8 @@ Plans (5), Wiki (2), Search (3), and Advanced Security (2).
 
 **v1.0 is implemented:** a FastMCP server with route discovery, API-version
 negotiation, PAT handling, and the v1.0 project-management tools, on stdio or
-loopback HTTP. Development ran without an Azure DevOps server, so no tool has
-yet run through the MCP server against a real collection. The inventory
+loopback HTTP. Live validation has now exercised all 12 tools and 30 actions
+through a real stdio MCP subprocess on one on-premises collection. The inventory
 below records the upstream tool names, actions, and REST route families as the
 long-term parity reference; it does not mean every upstream tool is in v1.0.
 A bounded, read-only route sweep and a separately authorized disposable-write
@@ -58,7 +58,10 @@ feature support or a guarantee for other server versions.
 
 - v1.0 covers roadmap steps 1 to 4 below: 12 tools with 30 actions.
 - `core_get_current_user` is the one tool upstream lacks. It is read-only and
-  backed by `GET C/_apis/connectionData`.
+  backed by `GET C/_apis/connectionData`, followed by collection-local
+  `GET C/_apis/identities?identityIds=...` when connection data omits an
+  assignment-ready account. It accepts only the matching authenticated ID
+  and reports an error rather than returning an unqualified directory account.
 - Routes and API versions are discovered and negotiated at runtime, as
   `azure-devops-node-api` does, instead of a fixed version map or pinned-oldest
   versions. Every call whose area publishes a location goes through discovery,
@@ -70,8 +73,9 @@ feature support or a guarantee for other server versions.
   picker on both protocol eras where the client supports elicitation, then an
   explicit error.
 - Every tool result is wrapped in untrusted-content delimiters, as upstream.
-- `work.get_iteration_capacities` is included and labelled "not tested",
-  because it returned HTTP 404 on the tested collection.
+- `work.get_iteration_capacities` passed live MCP validation using a returned
+  team-iteration ID. The earlier direct REST 404 is historical evidence for
+  those sampled identifiers, not proof that the operation is unavailable.
 - Transports: stdio by default; `--http` serves
   `http://127.0.0.1:8000/mcp`, `--port` changes the port, and there is no host
   option.
@@ -89,8 +93,8 @@ feature support or a guarantee for other server versions.
   `7.2-preview.4`.
 - The scaffold placeholder `do_stuff` is gone. Its tests are replaced by a
   command-line test of the `--port` rule.
-- No tool has run against a real server. Checks that need one are listed as
-  pending under "v1.0 verification status".
+- Current live MCP coverage and the remaining cross-version compatibility
+  checks are recorded under "v1.0 verification status".
 - The `pip-licenses` allowlist includes `Apache-2.0 OR BSD-3-Clause`, `ISC`,
   `MIT-0`, and `The Unlicense (Unlicense)`, which the runtime dependency tree
   needs.
@@ -114,9 +118,8 @@ hardcode a Jira-like schema.
 
 Attachments are a follow-up candidate rather than a v1.0 requirement: the
 available sample work item had no attachment fixture, and upload/link writes
-have not been live-tested. Likewise, all-team iteration capacity returned
-HTTP 404 on the tested collection, so `get_iteration_capacities` is
-compatibility-gated and capacity updates are deferred rather than promised for
+have not been live-tested. All-team iteration capacity reads passed the
+later MCP run; capacity updates remain deferred rather than promised for
 v1.0. Generic work-item relations are in scope; links to pull requests or Wiki
 artifacts depend on later integrations and are deferred.
 
@@ -430,6 +433,10 @@ Document the omission in user-facing feature coverage.
 
 ## Complete call-level REST inventory and instance probe status
 
+This is the historical pre-implementation route ledger. Later direct REST
+and live MCP verification below supersede its v1.0 "not tested" entries;
+later-phase endpoints remain unverified unless explicitly recorded otherwise.
+
 This ledger supplements the 44-tool inventory above. It traces every explicit
 Azure DevOps REST operation issued by a tool handler or shared helper in the
 pinned Microsoft source, including conditional follow-up requests. SDK method
@@ -634,9 +641,9 @@ all on-premises servers. The separately authorized v1.0 write results follow.
 
 The user explicitly authorized direct REST tests using `ADO_PAT` from the local
 `.env`, with new fake records only and cleanup afterward. This tested the
-collection directly, as intended before implementing the MCP tools. The MCP
-server and its tools are still unimplemented; tool-level tests follow
-implementation.
+collection directly, as intended before implementing the MCP tools. These
+historical results predate implementation; the subsequent live MCP results
+are recorded under "v1.0 verification status".
 The latest complete run generated a unique per-run marker, checked that it did
 not already exist, used `validateOnly=true` before work-item creation and
 assignment where supported, and retained created IDs only in the runner for
@@ -720,42 +727,62 @@ identity value, or credential.
 | Identity | `GET C/_apis/connectionData` and collection-local `GET C/_apis/identities` returned HTTP 200. Lookup by `identityIds` resolved the current user, and `searchFilter=General` with the domain-qualified account value returned the same identity. The upstream hardcoded VSSPS route must not receive the PAT. |
 | Commit search | The collection-local candidate returned HTTP 404 with the upstream `projectName` filter/body shape. Upstream hardcodes `almsearch.dev.azure.com`; keep this tool gated until an on-prem-compatible route is established. |
 | Collection-wide PR search | `GET C/_apis/git/pullRequests` returned HTTP 200. Pagination and filters beyond the bounded probe remain untested; do not perform an unbounded project/repository fan-out as an implicit fallback. |
-| v1.0 | See "Authorized v1.0 direct REST verification": create/edit, stale-revision rejection, five-item batch update/readback, child creation, comments, relations, assignment, WIQL, predefined queries, saved-query reads/results, Search, backlog/iteration reads, and cleanup succeeded for disposable records or read-only requests. Iteration creation, team assignment, and backlog reordering are explicitly deferred to a later phase. Attachment and capacity writes are also outside the verified v1.0 scope. |
+| v1.0 | Direct REST verification was followed by actual stdio MCP validation of all 12 tools and 30 actions, including permitted write/readback workflows and cleanup. See "v1.0 verification status". Iteration creation, team assignment, and backlog reordering remain explicitly deferred. Attachment and capacity writes are also outside v1.0. |
 | Advanced Security | Cloud-only for this scope; omit rather than return empty data or pretend support. |
 
-The latest authorized live test created and deleted five disposable work
-items. No existing work item was targeted for a write, and no ADO work item
-was used to track this repository plan.
+The MCP write tests use only uniquely marked non-Bug fixtures under an
+authorized Feature. Every fixture is soft-deleted and verified absent by
+GET and a primary WIQL scan; the Feature's fields and original relations are
+preserved. No ADO work item is used to track this repository plan.
 
 ### v1.0 verification status
 
-v1.0 was developed without an Azure DevOps server. Its server-free checks ran
-against the MCP server itself: startup on stdio and loopback HTTP, the tool
-list, settings validation, input validation, the untrusted-content wrapper,
-error mapping for an unreachable host, and the absence of the PAT from
-results and logs. The records above come from direct REST requests made
-before any tool existed; they show that routes responded, not that the tools
-work.
+The server-free suite uses a fake HTTP collection. It covers every action,
+discovery/version negotiation, reply shaping, settings and strict inputs,
+content boundaries, HTTP errors, project/team elicitation, and the no-retry
+policy. It is reported separately from real-collection tests.
 
-These checks need a real Azure DevOps Server collection and are pending:
+The release-fix validation passed 189 mocked tests on each of Python 3.11,
+3.12, 3.13, 3.14, and 3.15, plus 146 live checks on Windows. Pre-commit checks,
+wheel/source-distribution builds, distribution metadata validation, and an
+installed-wheel MCP smoke against the real collection also passed. The live
+run found all three newly created fixtures in Search without sleeps or polling,
+and cleanup was independently rechecked afterward.
 
-- the discovery `OPTIONS` reply shape for `core`, `wit`, `work`, `search`,
-  and `IMS`, and whether `search` and `IMS` publish their locations;
-- negotiation against real released and maximum versions;
-- each of the 30 actions' success path and reply shaping;
-- the project and team picker on a handshake-era client and on a 2026-07-28
-  client;
-- paging and continuation tokens;
-- the Markdown comment rule on a server below and at `7.2-preview.4`;
-- real 401, 403, 404, 409, 412, and version-error replies;
-- a real redirect and a real reply above 2 MiB;
-- write behavior, including that a timed-out write is not replayed;
-- install and startup on Python 3.15.
+Actual subprocess stdio MCP tests against one on-premises collection cover:
+
+- all 12 advertised tools and 30 actions, with runtime discovery and negotiated
+  versions rather than fixed-route substitutes;
+- authenticated-user lookup followed by assignment and identity readback;
+- project paging, team settings, both capacity reads, saved queries, WIQL,
+  personal queries, backlog and iteration work-item reads;
+- non-Bug creation and child creation under an authorized Feature, ordinary
+  and batch updates, valid Task/Story state transitions, and optional fields;
+- HTTP 412 stale-revision rejection with exact readback proving no mutation;
+- HTML and Markdown comments, comment updates and continuation tokens, revision
+  paging, historical reads, and precise related-link addition/removal;
+- indexed full-text Search, filters and offset paging with authoritative
+  readback; fresh writes use item reads or WIQL while the index catches up;
+- ownership-guarded comment deletion and work-item soft-deletion through REST
+  (there is no MCP delete action), followed by 404 and primary-WIQL checks.
+
+The identity defect found by this run was incomplete connection-data
+properties: a bare account was not assignable. The helper now resolves the
+full identity by exact ID when needed. Story activation also exposed a
+process rule requiring Acceptance Criteria; supplying that field succeeds,
+so it is a fixture requirement rather than an MCP defect. Legacy MCP `ping`
+works; it is intentionally absent from the 2026-07-28 stateless protocol.
+
+One collection cannot supply a real-server compatibility matrix. Older
+comment APIs, alternate authentication/permission/version errors, real
+redirects or dropped writes, and other server releases remain covered by
+mocked tests until independently verified on suitable servers. Do not provoke
+unsafe writes or change shared configuration to manufacture those conditions.
 
 ## Implementation roadmap
 
-Steps 1 to 4 are implemented in v1.0. Their live verification against a real
-collection is pending; see "v1.0 verification status".
+Steps 1 to 4 are implemented in v1.0 and have live MCP evidence on one
+collection; see "v1.0 verification status".
 
 1. **Configuration and transport:** implement validated collection URL
    handling, raw `ADO_PAT` Basic auth, TLS verification, bounded timeouts,

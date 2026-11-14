@@ -26,6 +26,9 @@ async def search_workitem(
 ) -> ToolResult:
     """Search work items by text, optionally filtered by project, area, type, state, assignee.
 
+    The server's full-text index is eventually consistent. Verify fresh writes with
+    wit_work_item get or wit_query wiql instead of immediate search results.
+
     Args:
         searchText: Text to search for in work items.
         project: Filter by projects.
@@ -70,6 +73,10 @@ def register(mcp: FastMCP) -> None:
     mcp.tool(
         search_workitem,
         name=SEARCH_WORKITEM,
-        description="Get Azure DevOps Work Item search results for a given search text.",
+        description=(
+            "Get Azure DevOps Work Item search results for a given search text. "
+            "The full-text index is eventually consistent; verify fresh writes with "
+            "wit_work_item get or wit_query wiql."
+        ),
         annotations=dict(READ_ONLY_ANNOTATIONS),
     )

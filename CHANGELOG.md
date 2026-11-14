@@ -13,7 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
--
+- Document live MCP validation, eventual Search indexing, and server-defined
+  work-item rules.
 
 ### Deprecated
 
@@ -25,7 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
--
+- Resolve the current user's full identity by exact ID when connection data
+  omits the domain, so its unique name can be used for assignment. Preserve
+  already qualified accounts and report unresolved identities explicitly.
 
 ## Security
 

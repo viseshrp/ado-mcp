@@ -8,9 +8,11 @@ Python MCP server for on-premises Azure DevOps Server and TFS.
 ## Status
 
 v1.0 implements the tools listed below for project management on one
-Azure DevOps Server or TFS collection. No tool has run through the MCP server
-on a real collection yet. The routes were exercised earlier with direct REST
-requests, which the verification column in [Tools](#tools) records.
+Azure DevOps Server or TFS collection. Live validation has exercised all
+12 tools and 30 actions through an actual stdio MCP subprocess against one
+on-premises collection, separately from the mocked test suite. This is
+instance-specific evidence, not a guarantee for every server release or
+custom process. See [Tools](#tools) and [Known limits](#known-limits).
 
 See [PLAN.md](PLAN.md) for the scope, compatibility evidence, and roadmap.
 
@@ -88,28 +90,25 @@ with your PAT. `--port` without `--http` is a usage error.
 ## Tools
 
 v1.0 has 12 tools with 30 actions. A tool without an `action` input counts as
-one action. The verification column describes earlier direct REST requests
-recorded in [PLAN.md](PLAN.md), which used fixed routes and versions and no
-MCP tool. None of these tools has run through the MCP server on a real
-collection.
+one action. The verification column records live MCP coverage on one
+on-premises collection; earlier direct REST evidence remains in
+[PLAN.md](PLAN.md). Write validation used authorized, uniquely marked
+non-Bug fixtures under an existing Feature, with readback and verified cleanup.
 
 | Tool | Actions | Annotations | Verification |
 |---|---|---|---|
-| `core_list_projects` | single action | read-only | route seen in an earlier direct REST probe |
-| `core_list_project_teams` | single action | read-only | route seen in an earlier direct REST probe |
-| `core_get_identity_ids` | single action | read-only | route seen in an earlier direct REST probe |
-| `core_get_current_user` | single action | read-only | route seen in an earlier direct REST probe |
-| `work` | `list_iterations` | read-only | not tested (the probe used a different route than upstream sends) |
-| `work` | `list_team_iterations`, `get_team_settings`, `get_team_capacity` | read-only | route seen in an earlier direct REST probe |
-| `work` | `get_iteration_capacities` | read-only | not tested (the probe returned HTTP 404) |
-| `wit_work_item` | `get`, `get_batch`, `list_comments`, `my`, `list_revisions`, `list_for_iteration`, `get_type` | read-only | route seen in an earlier direct REST probe |
-| `wit_query` | `get`, `get_results`, `wiql` | read-only | route seen in an earlier direct REST probe |
-| `wit_backlog` | `list`, `list_work_items` | read-only | route seen in an earlier direct REST probe |
-| `search_workitem` | single action | read-only | route seen in an earlier direct REST probe |
-| `wit_work_item_write` | `create`, `update`, `update_batch` | mutating | route seen in an earlier direct REST probe |
-| `wit_work_item_write` | `add_child` | mutating | not tested (child creation through `$batch` was not recorded) |
-| `wit_work_item_comment_write` | `add`, `update` | mutating | route seen in an earlier direct REST probe |
-| `wit_work_item_link_write` | `link`, `unlink` | mutating | route seen in an earlier direct REST probe |
+| `core_list_projects` | single action | read-only | live MCP |
+| `core_list_project_teams` | single action | read-only | live MCP |
+| `core_get_identity_ids` | single action | read-only | live MCP |
+| `core_get_current_user` | single action | read-only | live MCP and assignment readback |
+| `work` | `list_iterations`, `list_team_iterations`, `get_team_settings`, `get_team_capacity`, `get_iteration_capacities` | read-only | live MCP |
+| `wit_work_item` | `get`, `get_batch`, `list_comments`, `my`, `list_revisions`, `list_for_iteration`, `get_type` | read-only | live MCP |
+| `wit_query` | `get`, `get_results`, `wiql` | read-only | live MCP |
+| `wit_backlog` | `list`, `list_work_items` | read-only | live MCP |
+| `search_workitem` | single action | read-only | live MCP with indexed-result readback and paging |
+| `wit_work_item_write` | `create`, `update`, `update_batch`, `add_child` | mutating | live MCP with readback |
+| `wit_work_item_comment_write` | `add`, `update` | mutating | live MCP with readback and paging |
+| `wit_work_item_link_write` | `link`, `unlink` | mutating | live MCP with exact relation readback |
 
 Tool, action, and input names match Microsoft's Azure DevOps MCP server
 (version 2.11.0), so prompts written for it carry over. Every input, including
@@ -118,7 +117,10 @@ tool schema that says what it means and which actions use or require it.
 
 `core_get_current_user` is the one tool Microsoft's server does not have. It
 returns the authenticated user's identity ID, display name, and the
-domain-qualified unique name that `System.AssignedTo` accepts.
+unique name that `System.AssignedTo` accepts. If connection data omits the
+domain, it reads the full identity by the authenticated user's exact ID on
+the same collection. Already qualified accounts and email addresses are
+preserved. An unresolved identity is an error, not a bare-account fallback.
 
 `wit_backlog` is read-only in v1.0. Microsoft's server marks it as mutating
 because of its `reorder` action, which v1.0 does not ship, so its
@@ -297,6 +299,15 @@ Work-item search needs the Search service, which not every server runs. When
 `search_workitem` reports `unsupported_on_server`, `wit_query` `wiql` remains
 the way to find work items.
 
+The Search index is eventually consistent. Newly created or updated work
+items can be absent or stale, and deleted items can remain indexed. For
+read-after-write verification, use `wit_work_item` `get` or `wit_query` `wiql`,
+not immediate full-text Search. The server does not poll or retry for indexing.
+
+MCP `ping` is available on the legacy handshake protocol. The 2026-07-28
+stateless protocol no longer defines it; use discovery and a read-only tool
+call to verify that connection instead.
+
 Every request goes to `ADO_COLLECTION_URL` and keeps its path. Redirects are
 never followed: a 3xx reply is a `connection_failed` error, so the PAT cannot
 reach another URL. TLS certificate verification stays on. The standard proxy
@@ -321,6 +332,10 @@ project and team permissions.
 A read-only PAT is enough for every read-only tool; the write tools then fail
 with the server's authorization error.
 
+Creating a new tag definition also needs the collection's tag-creation
+permission. A full-scope PAT does not override it; reuse existing tags when
+the user's collection policy disallows creating tags.
+
 ## Safe-write guidance
 
 - The three write tools carry the MCP annotations `readOnlyHint: false` and
@@ -338,6 +353,15 @@ with the server's authorization error.
 - Writes are sent once and never retried. After a timeout or a dropped
   connection, read the work item before trying again, because the first
   request may have succeeded.
+- For `$batch` results (`update_batch`, `add_child`, and `link`), inspect every
+  `value[].code`. An outer HTTP 200 can contain failed operations; verify the
+  successful writes by readback rather than treating the outer status as proof.
+- Work-item rules and required custom fields come from the collection's
+  process. Supply them when creating or transitioning work items; for example,
+  some processes require Acceptance Criteria before a Story can become Active.
+  `add_child` supports only its advertised fields. For child types needing
+  additional custom fields, use `create` with those fields and then `link`
+  with type `parent`.
 - Comments default to Markdown, which needs the server to offer comment API
   `7.2-preview.4`. On a server that offers a lower version, a Markdown comment
   fails with `unsupported_on_server`; pass `format: "Html"` instead. Html
@@ -360,6 +384,7 @@ with the server's authorization error.
 | Page cap 200, reply cap 2 MiB | Bounds context use; an earlier probe exceeded 2 MiB | Large queries need a smaller `top`, `depth`, or field list | Users hit the caps on ordinary queries |
 | The picker lists the first 100 projects | Upstream does the same | Later projects can be typed but not picked | A collection with more than 100 projects needs the picker |
 | No retries | Writes must not be replayed; one rule covers every call | A transient failure reaches the caller | Read-only calls fail often on a flaky network |
+| Full-text Search uses the server's index | Preserves Azure DevOps Search semantics | Fresh writes may not be indexed yet; use item reads or WIQL for immediate verification | The server offers an indexing-completion contract |
 | `asOf` is a plain string | Avoids strict date-time coercion questions in the framework | The schema lacks `format: date-time` | A client needs the format hint |
 | Deferred-only inputs dropped; `wit_backlog` read-only | No input does nothing, and the tool no longer writes | Two tool schemas differ from upstream | The deferred actions ship |
 | API version in the query string | Microsoft documents it, and the earlier probes used it | Differs from the SDK's `Accept` header form | A server is found that honors only the header |

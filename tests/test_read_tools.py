@@ -79,7 +79,15 @@ class Request(NamedTuple):
             Request(
                 "core_get_current_user",
                 {},
-                {"authenticatedUser": {"id": "1"}},
+                {
+                    "authenticatedUser": {
+                        "id": "1",
+                        "properties": {
+                            "Domain": {"$value": "CORP"},
+                            "Account": {"$value": "ana"},
+                        },
+                    }
+                },
                 "GET",
                 "_apis/connectionData",
                 {},
