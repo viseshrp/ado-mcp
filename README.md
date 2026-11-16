@@ -19,8 +19,9 @@ Azure DevOps Services URLs (`dev.azure.com` and `visualstudio.com`). For Azure
 DevOps Services, see
 [Microsoft's Azure DevOps MCP server](https://github.com/microsoft/azure-devops-mcp).
 
-> **Beta.** 0.1.0 is the first release. Tool, action, and input names may
-> change before 1.0.
+> **Beta.** Tool, action, and input names may change before version 1.0.
+> Check the [changelog](https://github.com/viseshrp/ado-mcp/blob/main/CHANGELOG.md)
+> before you upgrade.
 
 ## Highlights
 
@@ -40,8 +41,8 @@ DevOps Services, see
 
 ## Requirements
 
-- Python 3.11 or newer on Linux, macOS, or Windows. CI tests Python 3.11
-  through 3.15 on all three.
+- Python 3.11 or newer on Linux, macOS, or Windows. Versions 3.11 through 3.15
+  are tested.
 - An Azure DevOps Server or TFS collection that you can reach over `https`.
 - A PAT for that collection. See
   [PAT permissions](https://github.com/viseshrp/ado-mcp/blob/main/README.md#pat-permissions).
@@ -51,16 +52,9 @@ DevOps Services, see
 
 ## Install
 
-The project uses three names:
-
-| Name | What it is |
-|---|---|
-| `ado-mcp-server` | The Python distribution that you install |
-| `ado-mcp` and `ado-mcp-server` | Two identical commands that start the server |
-| `ado_mcp` | The Python module, also runnable as `python -m ado_mcp` |
-
-The PyPI name `ado-mcp` belongs to an unrelated project. Install
-`ado-mcp-server`.
+Install the package `ado-mcp-server`. It provides the `ado-mcp` command,
+which starts the server. `ado-mcp-server` also works as a command, and
+`python -m ado_mcp` runs the same server.
 
 ### From PyPI
 
@@ -76,15 +70,18 @@ Or, in a virtual environment:
 python -m pip install ado-mcp-server
 ```
 
-`uv tool install` puts both commands on your `PATH`. Check the install:
+`uv tool install` puts the commands on your `PATH`. Check the install:
 
 ```bash
 ado-mcp --version
 ```
 
+To upgrade later, run `uv tool upgrade ado-mcp-server`, or
+`python -m pip install --upgrade ado-mcp-server`.
+
 ### From source
 
-To try unreleased changes or work on the project, install from GitHub with uv:
+To try changes that are not released yet, install from GitHub with uv:
 
 ```bash
 uv tool install git+https://github.com/viseshrp/ado-mcp
@@ -102,20 +99,20 @@ To use pip instead, run
 `python -m pip install git+https://github.com/viseshrp/ado-mcp` in a virtual
 environment.
 
-A source install from an untagged commit reports a timestamped development
-version (`.dev<timestamp>`) instead of a release number.
+A source install reports a development version, such as
+`0.1.1.dev<timestamp>`, instead of a release number.
 
 ## Quick start
 
-1. Create a PAT in the collection's web portal: open your profile (avatar)
-   menu, select **Security**, and then select **New Token** on the
-   **Personal access tokens** page. You can also open that page directly at
-   `<collection-url>/_usersSettings/tokens`. Select only the scopes you need,
-   not **Full access**. A read-only PAT is enough to try the read tools; see
-   [PAT permissions](https://github.com/viseshrp/ado-mcp/blob/main/README.md#pat-permissions).
-2. Find your collection URL, for example
+1. Find your collection URL. It is the address of the collection in your
+   browser, up to and including the collection name, for example
    `https://ado.example.net/tfs/DefaultCollection`.
-3. Add the server to your MCP client's configuration:
+2. Create a PAT. See
+   [Create a PAT](https://github.com/viseshrp/ado-mcp/blob/main/README.md#create-a-pat)
+   below. A read-only PAT is enough to try the read tools.
+3. Add the server to your MCP client's configuration. See
+   [Client setup](https://github.com/viseshrp/ado-mcp/blob/main/README.md#client-setup)
+   for specific clients. Many clients accept this shape:
 
    ```json
    {
@@ -135,19 +132,81 @@ version (`.dev<timestamp>`) instead of a release number.
 4. Restart or reload the client, then ask: "List the projects in my Azure
    DevOps collection."
 
-Many clients accept this `mcpServers` shape. Others use a different file or
-top-level key; keep the same `command` and `env` values and follow your
-client's MCP documentation.
+`ADO_PROJECT` is optional; it sets the project that tools use when you don't
+name one. If something goes wrong, see
+[Troubleshooting](https://github.com/viseshrp/ado-mcp/blob/main/README.md#troubleshooting).
+
+## Create a PAT
+
+The server signs in to your collection with a personal access token (PAT)
+that you create in the collection's web portal:
+
+1. Open the collection in your browser.
+2. Open your profile (avatar) menu and select **Security**.
+3. On the **Personal access tokens** page, select **New Token**. You can also
+   open this page directly at `<collection-url>/_usersSettings/tokens`, for
+   example `https://ado.example.net/tfs/DefaultCollection/_usersSettings/tokens`.
+4. Give the token a name and an expiration date, and select only the scopes
+   you need, not **Full access**. See
+   [PAT permissions](https://github.com/viseshrp/ado-mcp/blob/main/README.md#pat-permissions).
+5. Create the token and copy it. It is shown only once.
+
+Treat the PAT like a password. When it expires, create a new one and update
+your client configuration.
+
+## Client setup
+
+Every client needs the same two things: the command `ado-mcp`, and the
+settings from
+[Configuration](https://github.com/viseshrp/ado-mcp/blob/main/README.md#configuration)
+in its environment. Only the file and its format differ.
+
+### VS Code
+
+Add the server to `.vscode/mcp.json` in your workspace, or to your user MCP
+configuration. VS Code uses a `servers` key, and it can prompt for the PAT so
+that the file doesn't store it:
+
+```json
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "ado-pat",
+      "description": "Azure DevOps personal access token",
+      "password": true
+    }
+  ],
+  "servers": {
+    "ado": {
+      "type": "stdio",
+      "command": "ado-mcp",
+      "env": {
+        "ADO_COLLECTION_URL": "https://ado.example.net/tfs/DefaultCollection",
+        "ADO_PAT": "${input:ado-pat}",
+        "ADO_PROJECT": "Example Project"
+      }
+    }
+  }
+}
+```
+
+### Claude Desktop and other `mcpServers` clients
+
+Claude Desktop reads `claude_desktop_config.json`. Use the `mcpServers` shape
+from the [Quick start](https://github.com/viseshrp/ado-mcp/blob/main/README.md#quick-start).
+Many other clients accept the same shape. For any other client, keep the same
+`command` and `env` values and follow the client's MCP documentation.
+
+### Tips
 
 - If the client cannot find `ado-mcp`, set `command` to its full path. The
   directory is printed by `uv tool dir --bin`. On Windows the file is
   `ado-mcp.exe`, and backslashes in JSON must be doubled.
 - Clients can also run the server through `uvx` without a separate install:
   use `"command": "uvx"` with `"args": ["--from", "ado-mcp-server", "ado-mcp"]`.
-  To run unreleased source instead, replace `ado-mcp-server` with
-  `git+https://github.com/viseshrp/ado-mcp`.
-- The client configuration file holds your PAT in plain text. Restrict who can
-  read it, and never commit it.
+- A configuration file that contains the PAT holds it in plain text. Restrict
+  who can read the file, and never commit it.
 
 ## Configuration
 
@@ -200,7 +259,7 @@ before you approve a write; see
 
 ## Tools
 
-0.1.0 has 12 tools with 30 actions. A tool without an `action` input counts as
+The server has 12 tools with 30 actions. A tool without an `action` input counts as
 one action.
 
 | Tool | Kind | Actions | What it does |
@@ -236,13 +295,10 @@ differences:
   a number, this server returns `invalid_input`. Unknown inputs and actions
   are `invalid_input` too, and the error lists each failing field.
 
-There is no delete action. 0.1.0 does not include repositories and pull
-requests, builds and pipelines, test plans, Wiki, code or Wiki search,
-attachments, iteration creation or assignment, backlog reordering, or capacity
-updates. Later releases may add them; see the
-[roadmap](https://github.com/viseshrp/ado-mcp/blob/main/PLAN.md#implementation-roadmap).
-Microsoft's two Advanced Security tools are omitted because that feature is
-cloud-only.
+There is no delete action. Repositories and pull requests, builds and
+pipelines, test plans, Wiki, code or Wiki search, attachments, iteration
+creation or assignment, backlog reordering, and capacity updates are not
+supported yet.
 
 ## Project and team defaults
 
@@ -400,20 +456,11 @@ Version-specific behavior:
   stateless protocol does not define it; use a read-only tool call to check
   that connection instead.
 
-### What has been tested
-
-- The mocked test suite covers every tool and action and runs in CI on Python
-  3.11 through 3.15 on Linux, macOS, and Windows. It needs no Azure DevOps
-  server.
-- Live validation exercised all 12 tools and 30 actions through a real stdio
-  MCP subprocess against one on-premises collection, including writes on
-  uniquely marked test items with readback and verified cleanup.
-- That is evidence for one server and process configuration, not a guarantee
-  for every server release or custom process. Interactive project/team
-  selection has mocked coverage but has not been validated against the live
-  collection. See the
-  [verification status](https://github.com/viseshrp/ado-mcp/blob/main/PLAN.md#v010-verification-status)
-  for details.
+All 12 tools and 30 actions have been checked against one on-premises
+collection. Other server releases and custom processes can behave
+differently; if a tool fails on yours, please
+[open an issue](https://github.com/viseshrp/ado-mcp/issues) with the error
+code and your server release, but no PAT or private data.
 
 ## Limits
 
@@ -428,6 +475,19 @@ Nothing is cut silently. Actions without paging, such as `list_iterations`,
 backlog reads, `get_type`, and `wit_query` `get`, are bounded only by the
 reply cap. When they hit it, lower `depth`, request fewer fields, or narrow
 the query.
+
+## Troubleshooting
+
+| Symptom | What to check |
+|---|---|
+| The client says it cannot start or find `ado-mcp` | Run `ado-mcp --version` in a terminal. If that works, set `command` to the full path; see [Tips](https://github.com/viseshrp/ado-mcp/blob/main/README.md#tips). |
+| `Error: Invalid configuration :: ...` | The named setting is missing or invalid. See [Configuration](https://github.com/viseshrp/ado-mcp/blob/main/README.md#configuration). |
+| `authentication_failed` | The PAT is wrong, expired, or revoked, or it was created in a different collection. Create a new one. |
+| `permission_denied` | The PAT lacks a scope, or your account lacks permission in that project. See [PAT permissions](https://github.com/viseshrp/ado-mcp/blob/main/README.md#pat-permissions). |
+| `connection_failed` | Check that the collection URL opens in a browser on the same machine, and set `HTTPS_PROXY` or `SSL_CERT_FILE` if your network needs a proxy or a private CA. A redirect also causes this error; use the exact collection URL. |
+| `unsupported_on_server` | Your server release lacks that feature. See [Compatibility](https://github.com/viseshrp/ado-mcp/blob/main/README.md#compatibility). |
+| `missing_project_or_team` | Name the project or team in your request, or set `ADO_PROJECT` and `ADO_TEAM`. |
+| Search finds nothing | Your server may not run the Search service, or its index is behind. Ask for a WIQL query instead. |
 
 ## Errors
 
@@ -482,28 +542,14 @@ example `No teams found`.
   `add_child`, or `link`. Servers without comment API `7.2-preview.4` take
   Html comments only.
 
-The design decisions behind these limits, the compatibility evidence, and the
-roadmap are in
-[PLAN.md](https://github.com/viseshrp/ado-mcp/blob/main/PLAN.md#implementation-trade-offs).
+## Help and contributing
 
-## Contributing
-
-Contributions are welcome. See
-[CONTRIBUTING.md](https://github.com/viseshrp/ado-mcp/blob/main/CONTRIBUTING.md)
-for development setup, tests, and the release process, and
-[CHANGELOG.md](https://github.com/viseshrp/ado-mcp/blob/main/CHANGELOG.md)
-for release notes. Report bugs and request features in
-[GitHub Issues](https://github.com/viseshrp/ado-mcp/issues).
-
-To work on the code, install [uv](https://docs.astral.sh/uv/), then run:
-
-```bash
-uv sync
-make check
-make test-local
-```
-
-The tests use a fake collection and need no Azure DevOps credentials.
+Report bugs and ask questions in
+[GitHub Issues](https://github.com/viseshrp/ado-mcp/issues). Never include a
+PAT or private work-item content. Changes in each release are listed in the
+[changelog](https://github.com/viseshrp/ado-mcp/blob/main/CHANGELOG.md). To
+work on the code, see
+[CONTRIBUTING.md](https://github.com/viseshrp/ado-mcp/blob/main/CONTRIBUTING.md).
 
 ## License
 
