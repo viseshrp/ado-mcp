@@ -6,7 +6,7 @@ authors = [{ name = "Visesh Prasad", email = "11642379+viseshrp@users.noreply.gi
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-keywords = ["python"]
+keywords = ["azure-devops", "tfs", "mcp", "model-context-protocol"]
 requires-python = ">=3.11,<4.0"
 dependencies = [
     "click>=8.5.1",
@@ -206,7 +206,7 @@ sort_by_size = true
 exclude = ["venv/", ".venv/"]
 
 [tool.deptry]
-exclude = ["venv/.*", ".venv/.*", "tests/.*"]
+exclude = ["venv/.*", ".venv/.*", ".tox/.*", "tests/.*"]
 
 [tool.pre-commit.default_language_versions]
 python = "3.15"

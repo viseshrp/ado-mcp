@@ -6,6 +6,10 @@ fail() {
   exit 1
 }
 
+if [[ $# -gt 1 ]]; then
+  fail "Usage: $0 [MAJOR.MINOR.PATCH]"
+fi
+
 branch=$(git rev-parse --abbrev-ref HEAD)
 if [[ "$branch" != "main" ]]; then
   fail "Must be on main branch to tag a release."
@@ -34,7 +38,17 @@ if [[ ! "$development_version" =~ ^(.+)\.dev[0-9]+$ ]]; then
   fail "Expected a development version, got: $development_version"
 fi
 
-version="${BASH_REMATCH[1]}"
+version="${1:-${BASH_REMATCH[1]}}"
+if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+  fail "Release version must use MAJOR.MINOR.PATCH without leading zeroes."
+fi
+
+if ! uv run python -c \
+  'import sys; from packaging.version import Version; sys.exit(Version(sys.argv[1]) <= Version(sys.argv[2]))' \
+  "$version" "$development_version"; then
+  fail "Release version $version must be newer than $development_version."
+fi
+
 tag="v$version"
 echo "🏷 Releasing version: $version"
 

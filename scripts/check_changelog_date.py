@@ -12,7 +12,7 @@ CHANGELOG_PATH = Path("CHANGELOG.md")
 
 def main(version: str) -> None:
     if not CHANGELOG_PATH.exists():
-        print(f"❌ ERROR: {CHANGELOG_PATH} does not exist.")
+        print(f"ERROR: {CHANGELOG_PATH} does not exist.")
         sys.exit(1)
 
     today = date.today().isoformat()
@@ -23,12 +23,12 @@ def main(version: str) -> None:
 
     for i, line in enumerate(lines):
         if line.strip() == target_line:
-            print(f"🔍 Found line {i + 1}: {target_line}")
+            print(f"Found line {i + 1}: {target_line}")
             found = True
             break
 
     if not found:
-        print("❌ ERROR: CHANGELOG.md is not ready for release.")
+        print("ERROR: CHANGELOG.md is not ready for release.")
         print(f"   Expected line: {target_line}")
         print("Tip: Check if it's still marked as '[Unreleased]' and update it to today's date.")
         sys.exit(1)

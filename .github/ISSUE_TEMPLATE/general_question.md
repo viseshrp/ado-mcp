@@ -12,3 +12,12 @@ assignees: "viseshrp"
      the internals, the implementation or whatever interests you.
      Please use the BUG template for bugs and the FEATURE REQUEST template for
      feature requests. -->
+
+## Environment, if relevant
+
+- Package version (`ado-mcp --version`):
+- MCP client and transport (stdio or HTTP):
+- Azure DevOps Server/TFS release:
+
+<!-- Never include PATs, Authorization headers, .env files, or private work-item
+     data. Redact internal hosts and project names as needed. -->

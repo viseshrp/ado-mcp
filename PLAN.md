@@ -1,5 +1,11 @@
 # Project Plan: Generic Azure DevOps Server MCP
 
+This is the maintainer's design and compatibility ledger. For installation and
+usage, start with the [README](README.md); for development and release steps,
+see [Contributing](CONTRIBUTING.md). Published changes belong in the
+[changelog](CHANGELOG.md). Reference and deferred endpoints below are not
+promises of shipped functionality.
+
 ## Goal and current status
 
 Build an open-source Python MCP server using FastMCP for Azure DevOps Server
@@ -14,12 +20,12 @@ declares `azure-devops-node-api` `^15.1.2`. Its 44 tools cover nine domains:
 Core (3), Work (3), Work Items (9), Repositories (11), Pipelines (6), Test
 Plans (5), Wiki (2), Search (3), and Advanced Security (2).
 
-**v1.0 is implemented:** a FastMCP server with route discovery, API-version
-negotiation, PAT handling, and the v1.0 project-management tools, on stdio or
+**v0.1.0 is implemented:** a FastMCP server with route discovery, API-version
+negotiation, PAT handling, and the v0.1.0 project-management tools, on stdio or
 loopback HTTP. Live validation has now exercised all 12 tools and 30 actions
 through a real stdio MCP subprocess on one on-premises collection. The inventory
 below records the upstream tool names, actions, and REST route families as the
-long-term parity reference; it does not mean every upstream tool is in v1.0.
+long-term parity reference; it does not mean every upstream tool is in v0.1.0.
 A bounded, read-only route sweep and a separately authorized disposable-write
 verification against one on-premises collection are recorded below. They
 provide instance-specific evidence for the exercised routes, not complete
@@ -30,7 +36,7 @@ feature support or a guarantee for other server versions.
 - Deliver parity in staged releases. Preserve upstream names, actions,
   meaningful inputs, and behavior for the Azure DevOps Server/TFS-equivalent
   tools when each tool is implemented; the endpoint inventory is the later
-  release reference, not a requirement to ship all domains in v1.0.
+  release reference, not a requirement to ship all domains in v0.1.0.
 - Use Python and FastMCP with a small, typed HTTP client. Do not copy upstream
   implementation code. Preserve applicable license notices if code is later
   adapted.
@@ -45,7 +51,7 @@ feature support or a guarantee for other server versions.
 - Advanced Security is the known product-level omission: the two upstream
   tools depend on cloud functionality with no Azure DevOps Server equivalent.
   Other unverified endpoints remain documented and compatibility-gated, not
-  silently removed; domains outside v1.0 are deferred, not dropped.
+  silently removed; domains outside v0.1.0 are deferred, not dropped.
 - Do not use Azure DevOps work items for this repository's project tracking.
   Any live write test requires separate user authorization, uses uniquely
   marked disposable records only, never modifies existing work items, and
@@ -54,9 +60,9 @@ feature support or a guarantee for other server versions.
   user separately authorizes a specific test. Ordinary tests remain mocked or
   read-only.
 
-### v1.0 design decisions
+### v0.1.0 design decisions
 
-- v1.0 covers roadmap steps 1 to 4 below: 12 tools with 30 actions.
+- v0.1.0 covers roadmap steps 1 to 4 below: 12 tools with 30 actions.
 - `core_get_current_user` is the one tool upstream lacks. It is read-only and
   backed by `GET C/_apis/connectionData`, followed by collection-local
   `GET C/_apis/identities?identityIds=...` when connection data omits an
@@ -94,21 +100,47 @@ feature support or a guarantee for other server versions.
 - The scaffold placeholder `do_stuff` is gone. Its tests are replaced by a
   command-line test of the `--port` rule.
 - Current live MCP coverage and the remaining cross-version compatibility
-  checks are recorded under "v1.0 verification status".
+  checks are recorded under "v0.1.0 verification status".
 - The `pip-licenses` allowlist includes `Apache-2.0 OR BSD-3-Clause`, `ISC`,
   `MIT-0`, and `The Unlicense (Unlicense)`, which the runtime dependency tree
   needs.
 
-## v1.0 scope: project management
+## Implementation trade-offs
 
-v1.0 is for day-to-day work-item management and read-oriented board/iteration
+The [README](README.md#known-limitations) summarizes the user-facing limits.
+This table preserves the implementation rationale and the conditions for
+revisiting it. No latency, memory, or cost improvement is claimed.
+
+| Decision | Rationale | Trade-off | Revisit when |
+|---|---|---|---|
+| HTTP mode binds to loopback only | URL-connected clients run on the same machine | No shared or remote use; any local process can use the PAT | A shared deployment needs an authentication design |
+| No read-only switch | PAT permissions enforce access, and annotations let clients confirm writes | A write-capable PAT exposes the write tools | A user needs a read-only server with a write-capable PAT |
+| Replies pass through unmodelled | Server versions and custom fields vary, and upstream does the same | Callers get no typed reply structure | A consumer needs typed replies and an official machine-readable API description exists |
+| Markdown comments need comment API `7.2-preview.4` | That is the version upstream sends with a `format` parameter | Servers that negotiate lower need `format: "Html"` on every comment | A real server shows a lower version that accepts `format` |
+| One collection per process | The configuration names one collection | No multi-collection use within a process | A user needs several collections in one client session |
+| `https` only | The PAT must not travel unencrypted | An `http`-only server cannot be used | A user has an `http`-only server and accepts the risk |
+| `$batch` keeps fixed version `5.0` | No SDK publishes a discovery location for it | `update_batch`, `add_child`, and `link` need Azure DevOps Server 2019 or newer | A user on TFS 2018 or older needs them |
+| Search and identity lookup fall back to `7.2-preview.1` | Their discovery area names are unconfirmed, and the fixed route worked in the earlier probe | Fallback routes work only where the server accepts 7.2 | A real server shows whether the areas publish the locations |
+| No lock on the discovery cache | Duplicate discovery is idempotent | Two first calls at once can send two `OPTIONS` requests | Profiling shows it matters |
+| Strict inputs, no coercion | Strict validation was chosen over upstream's coercion | A client that sends `"10"` for a number gets an error | Clients in use send numbers as strings |
+| Page cap 200, reply cap 2 MiB | Bounds context use; an earlier probe exceeded 2 MiB | Large queries need a smaller `top`, `depth`, or field list | Users hit the caps on ordinary queries |
+| Picker lists the first 100 projects | Upstream does the same | Later projects must be named explicitly | A collection with more than 100 projects needs the picker |
+| No retries | Writes must not be replayed; one rule covers every call | A transient failure reaches the caller | Read-only calls fail often on a flaky network |
+| Search uses the server's index | Preserves Azure DevOps Search semantics | Fresh writes may not be indexed yet; use item reads or WIQL for immediate verification | The server offers an indexing-completion contract |
+| `asOf` is a plain string | Avoids strict date-time coercion questions in the framework | The schema lacks `format: date-time` | A client needs the format hint |
+| Deferred-only inputs omitted; `wit_backlog` read-only | No input does nothing, and the tool does not write | Tool schemas differ from upstream | The deferred actions ship |
+| API version in the query string | Microsoft documents it, and the earlier probes used it | Differs from the SDK's `Accept` header form | A server is found that honors only the header |
+
+## v0.1.0 scope: project management
+
+v0.1.0 is for day-to-day work-item management and read-oriented board/iteration
 context on a configurable Azure DevOps Server/TFS collection: see assigned
 work, find bugs and other items, create and edit work, and inspect its
 board-oriented backlog and iterations. Work-item types and fields remain
 server-defined (for example, Task, Bug, or Feature); the client must not
 hardcode a Jira-like schema.
 
-| Area | In-scope v1.0 behavior |
+| Area | In-scope v0.1.0 behavior |
 |---|---|
 | Project and user context | List projects and teams, resolve the current user, and use collection-local identity lookup where user selection is needed. |
 | Work-item discovery | Read one or batches of work items; retrieve assigned-to-me/my-activity items, saved-query results, and caller-supplied WIQL results; search work items; list revisions, comments, work-item types, and items in a team iteration. |
@@ -116,16 +148,16 @@ hardcode a Jira-like schema.
 | Boards and iteration planning | List project/team iterations and team settings, list backlogs and their work items, and read team capacity where supported. Iteration creation, team iteration assignment, and backlog reordering are deferred to a later phase. This means REST-backed backlog/iteration operations, not a board UI or visual board renderer. |
 | Work-item search | Include the upstream `search_workitem` capability on the verified collection-local POST route; retain WIQL as the query path and fallback if Search is unavailable on another server. |
 
-Attachments are a follow-up candidate rather than a v1.0 requirement: the
+Attachments are a follow-up candidate rather than a v0.1.0 requirement: the
 available sample work item had no attachment fixture, and upload/link writes
 have not been live-tested. All-team iteration capacity reads passed the
 later MCP run; capacity updates remain deferred rather than promised for
-v1.0. Generic work-item relations are in scope; links to pull requests or Wiki
+v0.1.0. Generic work-item relations are in scope; links to pull requests or Wiki
 artifacts depend on later integrations and are deferred.
 
 ### Later phase: iteration writes and backlog reordering
 
-These workflows are explicitly outside v1.0. The v1.0 release will expose
+These workflows are explicitly outside v0.1.0. The v0.1.0 release will expose
 iteration/team/backlog reads, but will not create iteration nodes, assign
 iterations to teams, or reorder a backlog.
 
@@ -136,7 +168,7 @@ iterations to teams, or reorder a backlog.
 | `wit_backlog.reorder` | Not tested because reordering a shared backlog could change existing item ordering. Before implementation, verify against an isolated disposable backlog and prove cleanup leaves existing work items untouched. |
 
 The following upstream areas remain in the inventory as later releases, not
-v1.0 commitments: Git repositories, branches, files, and pull requests;
+v0.1.0 commitments: Git repositories, branches, files, and pull requests;
 builds, pipelines, logs, and artifacts; test plans and test results; Wiki;
 code/Wiki/commit search. The two Advanced Security tools remain omitted because
 the feature is cloud-only and no Azure DevOps Server/TFS equivalent was found.
@@ -188,7 +220,7 @@ In the inventory, `C` is `ADO_COLLECTION_URL`; `P` is a project, `T` a team,
 
 Unless stated otherwise, every REST request includes an endpoint-specific
 `api-version` query parameter. The table records the route and meaningful
-operation parameters. v1.0 does not keep a hand-written compatibility map:
+operation parameters. v0.1.0 does not keep a hand-written compatibility map:
 each operation names its resource area, location ID, and upstream-requested
 version (`ado_mcp/operations.py`), and the client discovers the route and
 negotiates the version per server, as `azure-devops-node-api` does. The
@@ -235,13 +267,13 @@ ambiguous response.
   Bound page counts and response sizes. A previous read-only test-plan probe
   returned a large response even with `$top=1`; test pagination and output
   limits rather than assuming that `$top` bounds every nested payload.
-  Implemented in v1.0: `top` inputs accept at most 200, and every reply,
+  Implemented in v0.1.0: `top` inputs accept at most 200, and every reply,
   discovery included, is capped at 2 MiB while it streams. Over either limit
   the tool returns an error; nothing is truncated.
 - Preserve the distinction between an empty result and an unsupported
   endpoint. Return an explicit, actionable error for unavailable
   server-version features; do not turn HTTP errors into empty successful
-  results. Implemented in v1.0: a location the collection does not advertise,
+  results. Implemented in v0.1.0: a location the collection does not advertise,
   a version-rejection reply, or a 404/405 on a fixed fallback route is an
   `unsupported_on_server` error; other HTTP errors keep their status.
 - Treat URLs returned in API payloads as untrusted. In particular, validate
@@ -258,7 +290,7 @@ declines, or `No projects found to select from.` (an error) when there is
 nothing to pick. Upstream reads its optional default project and team inside
 those functions, so a default applies only where upstream would ask.
 
-v1.0 keeps that order: argument, `ADO_PROJECT` or `ADO_TEAM`, picker, and
+v0.1.0 keeps that order: argument, `ADO_PROJECT` or `ADO_TEAM`, picker, and
 otherwise an explicit `missing_project_or_team` error when the client did not
 declare elicitation. The picker supports both MCP protocol eras. Handshake-era
 connections (2024-11-05 to 2025-11-25) use a server-initiated
@@ -277,7 +309,7 @@ included, in untrusted-content delimiters
 the content, and `<</{nonce}>>`, with a 16-byte random hex nonce per block.
 The source is `Azure DevOps {domain}` upper-cased, except `wit_query` `wiql`
 (`wiql query results`) and `search_workitem` (`work item search results`).
-v1.0 implements the same wrapper in one FastMCP middleware, so each block is
+v0.1.0 implements the same wrapper in one FastMCP middleware, so each block is
 wrapped exactly once.
 
 ### Tool annotations
@@ -285,9 +317,9 @@ wrapped exactly once.
 Upstream declares three annotation sets (`src/shared/tool-annotations.ts`):
 read-only (`readOnlyHint` true, `destructiveHint` false, `idempotentHint`
 true, `openWorldHint` true), mutating (false, true, false, true), and additive
-(false, false, false, true). v1.0 uses two of them: the nine read tools are
-read-only and the three write tools are mutating. No v1.0 tool needs the
-additive set, so it is not defined. `wit_backlog` is read-only in v1.0;
+(false, false, false, true). v0.1.0 uses two of them: the nine read tools are
+read-only and the three write tools are mutating. No v0.1.0 tool needs the
+additive set, so it is not defined. `wit_backlog` is read-only in v0.1.0;
 upstream marks it mutating only because of its deferred `reorder` action.
 
 ## Upstream tool inventory and on-prem REST mapping
@@ -313,7 +345,7 @@ reviewers, and creators.
 | Upstream tool | Actions and REST mapping |
 |---|---|
 | `work` | `list_iterations`: `GET C/{P}/_apis/wit/classificationNodes?$depth=...` (the root nodes, filtered locally to iteration nodes; the earlier probe used `.../classificationnodes/Iterations` instead); `list_team_iterations`: `GET C/{P}/{T}/_apis/work/teamsettings/iterations?$timeframe=current`; `get_team_settings`: `GET C/{P}/{T}/_apis/work/teamsettings` followed by `GET C/{P}/{T}/_apis/work/teamsettings/teamfieldvalues`, merged into one result (there is no separate `get_team_field_values` action); `get_team_capacity`: `GET C/{P}/{T}/_apis/work/teamsettings/iterations/{I}/capacities`; `get_iteration_capacities`: `GET C/{P}/_apis/work/iterations/{I}/capacities`. |
-| `work_iteration_write` | Later phase (not v1.0): `create`: `POST C/{P}/_apis/wit/classificationnodes/Iterations` with the iteration node and dates; `assign`: `POST C/{P}/{T}/_apis/work/teamsettings/iterations` with the iteration path/ID. |
+| `work_iteration_write` | Later phase (not v0.1.0): `create`: `POST C/{P}/_apis/wit/classificationnodes/Iterations` with the iteration node and dates; `assign`: `POST C/{P}/{T}/_apis/work/teamsettings/iterations` with the iteration path/ID. |
 | `work_capacity_write` | `update`: `PATCH C/{P}/{T}/_apis/work/teamsettings/iterations/{I}/capacities/{teamMemberId}` with activities and days off. |
 
 ### Work Items — 9 tools
@@ -322,7 +354,7 @@ reviewers, and creators.
 |---|---|
 | `wit_work_item` | `get`: `GET C/{P?}/_apis/wit/workItems/{W}` with `fields`, `asOf`, and `$expand`; `get_batch`: `POST C/{P}/_apis/wit/workitemsbatch` with IDs and fields; `list_comments`: `GET C/{P}/_apis/wit/workItems/{W}/comments`; `my`: `GET C/{P}/_apis/work/predefinedqueries/{assignedtome\|myactivity}` with `$top` and `includeCompleted`; `list_revisions`: `GET C/{P}/_apis/wit/workItems/{W}/revisions`; `list_for_iteration`: `GET C/{P}/{T}/_apis/work/teamsettings/iterations/{I}/workitems`; `get_type`: `GET C/{P}/_apis/wit/workitemtypes/{type}`. |
 | `wit_query` | `get`: `GET C/{P}/{T?}/_apis/wit/queries/{queryId-or-path}`; `get_results`: `GET C/{P}/{T?}/_apis/wit/wiql/{queryId}`; `wiql`: `POST C/{P}/{T?}/_apis/wit/wiql` with `{ "query": "..." }`. Preserve `timePrecision`, `$top`, query expansion/depth, deleted-query, and ID-only options where supported. |
-| `wit_backlog` | v1.0 reads: `list`: `GET C/{P}/{T}/_apis/work/backlogs`; `list_work_items`: `GET C/{P}/{T}/_apis/work/backlogs/{backlogId}/workItems`. Later phase (not v1.0): `reorder`: `PATCH C/{P}/{T}/_apis/work/workitemsorder`, or `PATCH C/{P}/{T}/_apis/work/iterations/{I}/workitemsorder` for iteration ordering. The reorder body includes IDs and optional parent/previous/next/path information. |
+| `wit_backlog` | v0.1.0 reads: `list`: `GET C/{P}/{T}/_apis/work/backlogs`; `list_work_items`: `GET C/{P}/{T}/_apis/work/backlogs/{backlogId}/workItems`. Later phase (not v0.1.0): `reorder`: `PATCH C/{P}/{T}/_apis/work/workitemsorder`, or `PATCH C/{P}/{T}/_apis/work/iterations/{I}/workitemsorder` for iteration ordering. The reorder body includes IDs and optional parent/previous/next/path information. |
 | `wit_work_item_attachment` | Download: `GET C/_apis/wit/attachments/{attachmentId}` with optional `fileName` and download options. Stream the response and enforce size/path limits for any local save. |
 | `wit_work_item_attachment_upload` | Upload: `POST C/_apis/wit/attachments?fileName=...` with decoded binary content; return the attachment reference. |
 | `wit_work_item_attachment_link` | Link the uploaded attachment: `PATCH C/{P}/_apis/wit/workItems/{W}` with a JSON Patch `AttachedFile` relation and optional comment. |
@@ -330,7 +362,7 @@ reviewers, and creators.
 | `wit_work_item_comment_write` | `add`: `POST C/{P}/_apis/wit/workItems/{W}/comments`; `update`: `PATCH C/{P}/_apis/wit/workItems/{W}/comments/{commentId}`. Preserve Markdown/HTML format and mention resolution where available. This endpoint/version is compatibility-gated. |
 | `wit_work_item_link_write` | `link`, `unlink`, `link_to_pull_request`, and `add_artifact_link` mutate the work item's relations through `PATCH C/{P}/_apis/wit/workItems/{W}` or batched `PATCH C/_apis/wit/$batch`. Use relation reads before unlinking; preserve relation types, artifact URIs, and comments. |
 
-v1.0 notes for this domain:
+v0.1.0 notes for this domain:
 
 - `wit_backlog` ships `list` and `list_work_items` only and is annotated
   read-only. Its reorder-only inputs (`ids`, `previousId`, `nextId`,
@@ -341,9 +373,9 @@ v1.0 notes for this domain:
   `branchName`, `commitId`, `buildId`, `wikiId`, `pageId`, `pagePath`,
   `linkType`, `comment`) are not in the schema.
 - Comment add and update send the `format` query parameter as a number:
-  `0` for Markdown and `1` for Html, as upstream does. v1.0 sends it only when
+  `0` for Markdown and `1` for Html, as upstream does. v0.1.0 sends it only when
   discovery negotiates comment API `7.2-preview.4`.
-- The attachment tools are not in v1.0.
+- The attachment tools are not in v0.1.0.
 
 ### Repositories — 11 tools
 
@@ -434,7 +466,7 @@ Document the omission in user-facing feature coverage.
 ## Complete call-level REST inventory and instance probe status
 
 This is the historical pre-implementation route ledger. Later direct REST
-and live MCP verification below supersede its v1.0 "not tested" entries;
+and live MCP verification below supersede its v0.1.0 "not tested" entries;
 later-phase endpoints remain unverified unless explicitly recorded otherwise.
 
 This ledger supplements the 44-tool inventory above. It traces every explicit
@@ -467,8 +499,8 @@ means no mutating request was issued.
 | `work.get_team_settings` | `GET C/{P}/{T}/_apis/work/teamsettings`, then `GET C/{P}/{T}/_apis/work/teamsettings/teamfieldvalues` (both `7.2-preview.1`); the two replies are merged into one result. There is no separate `get_team_field_values` action. | Not tested. |
 | `work.get_team_capacity` | `GET C/{P}/{T}/_apis/work/teamsettings/iterations/{I}/capacities` (`7.2-preview.3`). | Not tested. |
 | `work.get_iteration_capacities` | `GET C/{P}/_apis/work/iterations/{I}/capacities` (`7.2-preview.1`). | Not tested. |
-| `work_iteration_write.create` | `POST C/{P}/_apis/wit/classificationnodes/Iterations[/{parentPath}]` (`7.1-preview.2`) with the classification-node body. | Later phase, not v1.0: attempted at `7.1-preview.2` and stable `7.1`; blocked by `TF50309` (**Create child nodes** permission). |
-| `work_iteration_write.assign` | `POST C/{P}/{T}/_apis/work/teamsettings/iterations` (`7.2-preview.1`) with the iteration path or ID. | Later phase, not v1.0: not attempted because an isolated disposable iteration was unavailable. |
+| `work_iteration_write.create` | `POST C/{P}/_apis/wit/classificationnodes/Iterations[/{parentPath}]` (`7.1-preview.2`) with the classification-node body. | Later phase, not v0.1.0: attempted at `7.1-preview.2` and stable `7.1`; blocked by `TF50309` (**Create child nodes** permission). |
+| `work_iteration_write.assign` | `POST C/{P}/{T}/_apis/work/teamsettings/iterations` (`7.2-preview.1`) with the iteration path or ID. | Later phase, not v0.1.0: not attempted because an isolated disposable iteration was unavailable. |
 | `work_capacity_write.update` | `PATCH C/{P}/{T}/_apis/work/teamsettings/iterations/{I}/capacities/{teamMemberId}` (`7.2-preview.3`) with a capacity patch. | Write not tested. |
 | `wit_work_item.get` | `GET C/{P?}/_apis/wit/workItems/{W}` (`7.1-preview.3`), optionally with `fields`, `asOf`, and `$expand`. | Confirmed: work-item detail returned HTTP 200. |
 | `wit_work_item.get_batch` | `POST C/{P}/_apis/wit/workitemsbatch` (`7.1-preview.1`) with IDs and fields. | Not tested. |
@@ -481,7 +513,7 @@ means no mutating request was issued.
 | `wit_query.get_results` | `GET C/{P}/{T?}/_apis/wit/wiql/{queryId}` (`7.1-preview.2`) with `timePrecision` and `$top`. | Not individually recorded. |
 | `wit_query.wiql` | `POST C/{P}/{T?}/_apis/wit/wiql` (`7.1-preview.2`) with a JSON `{ "query": "..." }` body and optional `timePrecision`/`$top`. | Confirmed: read-only WIQL returned HTTP 200. |
 | `wit_backlog.list` / `list_work_items` | `GET C/{P}/{T}/_apis/work/backlogs` and `GET .../backlogs/{backlogId}/workItems` (both `7.2-preview.1`). | Not tested. |
-| `wit_backlog.reorder` | `PATCH C/{P}/{T}/_apis/work/workitemsorder` or `PATCH C/{P}/{T}/_apis/work/iterations/{I}/workitemsorder` (`7.2-preview.1`) with a reorder operation. | Later phase, not v1.0: not attempted because it could modify ordering in the shared backlog. |
+| `wit_backlog.reorder` | `PATCH C/{P}/{T}/_apis/work/workitemsorder` or `PATCH C/{P}/{T}/_apis/work/iterations/{I}/workitemsorder` (`7.2-preview.1`) with a reorder operation. | Later phase, not v0.1.0: not attempted because it could modify ordering in the shared backlog. |
 | `wit_work_item_attachment` download | `GET C/{P?}/_apis/wit/attachments/{attachmentId}` (`7.1-preview.3`), optionally with `fileName` and download options. | Not tested. |
 | `wit_work_item_attachment_upload` | `POST C/{P?}/_apis/wit/attachments` (`7.1-preview.3`) with `fileName` and binary content. | Write not tested. |
 | `wit_work_item_attachment_link` | `PATCH C/{P}/_apis/wit/workItems/{W}` (`7.1-preview.3`) with an `AttachedFile` JSON Patch relation. | Write not tested. |
@@ -571,7 +603,7 @@ for neighboring routes, preview API versions, or other Azure DevOps Server
 releases. The ledger records explicit tool/helper calls, and this section
 records the additional SDK-internal discovery requests.
 
-v1.0 reproduces step 3: `OPTIONS C/_apis/{area}` with no `api-version`, cached
+v0.1.0 reproduces step 3: `OPTIONS C/_apis/{area}` with no `api-version`, cached
 per area for the life of the server process. A 404 or an empty reply counts as
 no locations and is not cached; any other failure is reported, so an
 authentication error never looks like an unsupported route. Steps 1 and 2
@@ -635,15 +667,15 @@ endpoint was called; no `PATCH`, `PUT`, or `DELETE` request was sent.
 These are route-level observations for one collection, not proof of every
 input combination, pagination path, user permission, or Azure DevOps Server
 release. `404` results are recorded as unconfirmed rather than generalized to
-all on-premises servers. The separately authorized v1.0 write results follow.
+all on-premises servers. The separately authorized v0.1.0 write results follow.
 
-## Authorized v1.0 direct REST verification
+## Authorized v0.1.0 direct REST verification
 
 The user explicitly authorized direct REST tests using `ADO_PAT` from the local
 `.env`, with new fake records only and cleanup afterward. This tested the
 collection directly, as intended before implementing the MCP tools. These
 historical results predate implementation; the subsequent live MCP results
-are recorded under "v1.0 verification status".
+are recorded under "v0.1.0 verification status".
 The latest complete run generated a unique per-run marker, checked that it did
 not already exist, used `validateOnly=true` before work-item creation and
 assignment where supported, and retained created IDs only in the runner for
@@ -673,7 +705,7 @@ The disposable work items were temporarily assigned to the team's already
 configured default iteration. This exercised work-item `System.IterationPath`
 assignment, but did not change the iteration node or team iteration
 configuration. Iteration creation, team assignment, and backlog reordering are
-not v1.0 requirements; their evidence and safe-test criteria are recorded in
+not v0.1.0 requirements; their evidence and safe-test criteria are recorded in
 "Later phase: iteration writes and backlog reordering."
 
 These are direct REST results, as requested, for one collection and one
@@ -714,20 +746,20 @@ grant this project/classification-node permission.
 Read-only probes performed during earlier planning against one private
 on-premises collection succeeded for projects, teams/iterations, work items
 and metadata, WIQL/search, repositories/PRs, builds/pipelines, Wiki, and test
-plans/suites/runs. The later authorized v1.0 follow-up adds disposable-record
-write and targeted v1.0 read evidence below. This plan intentionally records
+plans/suites/runs. The later authorized v0.1.0 follow-up adds disposable-record
+write and targeted v0.1.0 read evidence below. This plan intentionally records
 no private host, collection or project name, work-item ID, response body,
 identity value, or credential.
 
 | Area | Evidence and implementation requirement |
 |---|---|
 | Core, Work, WIT, Git, Build/Pipelines, Wiki, Test | The read routes listed in the live sweep returned HTTP 200 except all-team iteration capacity (404), build-scoped test-run lookup at `7.2-preview.1` (404 for the sampled build), and PR lookup by commit (HTTP 201). Some conditional routes lacked a usable fixture. Re-test across the compatibility matrix; do not generalize one server's result to every release. |
-| Search | The collection-local Code, Wiki, and work-item POST searches returned HTTP 200; GET work-item Search returned 405. The authorized v1.0 run found all five fake work items by a unique marker and verified offset paging with a separate read-only query. An earlier marker search returned no hits, so immediate indexing consistency remains unproven. Collection-local commit Search returned 404 with the upstream request body; do not use the cloud host as fallback. |
+| Search | The collection-local Code, Wiki, and work-item POST searches returned HTTP 200; GET work-item Search returned 405. The authorized v0.1.0 run found all five fake work items by a unique marker and verified offset paging with a separate read-only query. An earlier marker search returned no hits, so immediate indexing consistency remains unproven. Collection-local commit Search returned 404 with the upstream request body; do not use the cloud host as fallback. |
 | Test APIs | Plan/suite/case reads and test-result reads at `7.2-preview.2` returned HTTP 200. Build-scoped run lookup returned 404 at `7.2-preview.1` for the sampled build and an empty collection at `6.0`; unfiltered `6.0` run listing and result retrieval succeeded. Test-run paging and a matching build-to-run chain remain to be tested. |
 | Identity | `GET C/_apis/connectionData` and collection-local `GET C/_apis/identities` returned HTTP 200. Lookup by `identityIds` resolved the current user, and `searchFilter=General` with the domain-qualified account value returned the same identity. The upstream hardcoded VSSPS route must not receive the PAT. |
 | Commit search | The collection-local candidate returned HTTP 404 with the upstream `projectName` filter/body shape. Upstream hardcodes `almsearch.dev.azure.com`; keep this tool gated until an on-prem-compatible route is established. |
 | Collection-wide PR search | `GET C/_apis/git/pullRequests` returned HTTP 200. Pagination and filters beyond the bounded probe remain untested; do not perform an unbounded project/repository fan-out as an implicit fallback. |
-| v1.0 | Direct REST verification was followed by actual stdio MCP validation of all 12 tools and 30 actions, including permitted write/readback workflows and cleanup. See "v1.0 verification status". Iteration creation, team assignment, and backlog reordering remain explicitly deferred. Attachment and capacity writes are also outside v1.0. |
+| v0.1.0 | Direct REST verification was followed by actual stdio MCP validation of all 12 tools and 30 actions, including permitted write/readback workflows and cleanup. See "v0.1.0 verification status". Iteration creation, team assignment, and backlog reordering remain explicitly deferred. Attachment and capacity writes are also outside v0.1.0. |
 | Advanced Security | Cloud-only for this scope; omit rather than return empty data or pretend support. |
 
 The MCP write tests use only uniquely marked non-Bug fixtures under an
@@ -735,7 +767,7 @@ authorized Feature. Every fixture is soft-deleted and verified absent by
 GET and a primary WIQL scan; the Feature's fields and original relations are
 preserved. No ADO work item is used to track this repository plan.
 
-### v1.0 verification status
+### v0.1.0 verification status
 
 The server-free suite uses a fake HTTP collection. It covers every action,
 discovery/version negotiation, reply shaping, settings and strict inputs,
@@ -781,23 +813,23 @@ unsafe writes or change shared configuration to manufacture those conditions.
 
 ## Implementation roadmap
 
-Steps 1 to 4 are implemented in v1.0 and have live MCP evidence on one
-collection; see "v1.0 verification status".
+Steps 1 to 4 are implemented in v0.1.0 and have live MCP evidence on one
+collection; see "v0.1.0 verification status".
 
 1. **Configuration and transport:** implement validated collection URL
    handling, raw `ADO_PAT` Basic auth, TLS verification, bounded timeouts,
    redacted logging, endpoint-version mapping, typed request/response helpers,
    and actionable HTTP errors.
-2. **v1.0 project-management reads:** implement project/team/user context,
+2. **v0.1.0 project-management reads:** implement project/team/user context,
    work-item detail and assigned-to-me queries, saved queries/WIQL, work-item
    search, revisions/comments/types, team iterations/settings, and backlog
    reads. Add paging and response-size limits before enabling bulk or nested
    results.
-3. **v1.0 project-management writes:** implement work-item create/update,
+3. **v0.1.0 project-management writes:** implement work-item create/update,
    batch/child operations, comments, and item relations. Never automatically
    replay ambiguous writes; use JSON Patch, revision/concurrency guards, and
    explicit tool annotations.
-4. **v1.0 compatibility and release:** publish the exact 1.0 tool/action list,
+4. **v0.1.0 compatibility and release:** publish the exact 0.1.0 tool/action list,
    distinguish verified routes from compatibility-gated behavior, and provide
    setup, `.env` handling, PAT permission guidance, and safe-write
    documentation. Run mocked tests, static checks, optional read-only live
@@ -816,20 +848,20 @@ collection; see "v1.0 verification status".
 - URL tests cover a collection root with a path prefix (for example
   `/tfs/DefaultCollection`), encoded project/team names, same-origin
   redirects, and rejection of cloud-hosted hardcoded endpoints.
-- Mocked HTTP tests cover every v1.0 tool/action, HTTP verb, route,
+- Mocked HTTP tests cover every v0.1.0 tool/action, HTTP verb, route,
   `api-version`, request body/content type, pagination token, error response,
   and relevant optimistic-concurrency behavior.
 - Work-item acceptance tests cover assigned-to-me retrieval, WIQL filtering
   for Bugs/tasks, create/update, child items, comments, item relations, backlog
   reads, and iteration/team context. Iteration creation/assignment and backlog
-  reordering are not v1.0 acceptance criteria.
-- Tool-registration tests assert the v1.0 names/actions, ensure later DevOps
+  reordering are not v0.1.0 acceptance criteria.
+- Tool-registration tests assert the v0.1.0 names/actions, ensure later DevOps
   domains and deferred iteration/backlog writes are not accidentally exposed
   in the initial release, and assert that the two Advanced Security tools are
   not registered.
 - Work-item Search tests use POST and cover the observed 405 response for GET;
   WIQL remains available when the target's Search route is unsupported.
-- v1.0 work-item query, backlog, revision, and comment responses remain
+- v0.1.0 work-item query, backlog, revision, and comment responses remain
   bounded and paginated. Later pipeline, test, Wiki, and artifact tools must
   meet the same limits before they are enabled.
 - Live integration tests are read-only by default and use a PAT supplied

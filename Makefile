@@ -83,8 +83,8 @@ version: ## Print the current project version
 	uv run hatch version
 
 .PHONY: tag
-tag: ## 🏷 Tag the current release version (fixes changelog and pushes tag)
-	$(BASH) scripts/tag_release.sh
+tag: ## 🏷 Validate and push a release tag (optionally set VERSION)
+	$(BASH) scripts/tag_release.sh "$(VERSION)"
 
 .PHONY: check-dist
 check-dist: ## Validate dist/ artifacts (long description, format)
