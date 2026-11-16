@@ -20,8 +20,7 @@ DevOps Services, see
 [Microsoft's Azure DevOps MCP server](https://github.com/microsoft/azure-devops-mcp).
 
 > **Beta.** 0.1.0 is the first release. Tool, action, and input names may
-> change before 1.0. The package is not on PyPI yet; until it is,
-> [install from source](https://github.com/viseshrp/ado-mcp/blob/main/README.md#from-source).
+> change before 1.0.
 
 ## Highlights
 
@@ -63,9 +62,29 @@ The project uses three names:
 The PyPI name `ado-mcp` belongs to an unrelated project. Install
 `ado-mcp-server`.
 
+### From PyPI
+
+With uv:
+
+```bash
+uv tool install ado-mcp-server
+```
+
+Or, in a virtual environment:
+
+```bash
+python -m pip install ado-mcp-server
+```
+
+`uv tool install` puts both commands on your `PATH`. Check the install:
+
+```bash
+ado-mcp --version
+```
+
 ### From source
 
-Source installs work now, before the first PyPI release. With uv:
+To try unreleased changes or work on the project, install from GitHub with uv:
 
 ```bash
 uv tool install git+https://github.com/viseshrp/ado-mcp
@@ -79,33 +98,12 @@ cd ado-mcp
 uv tool install .
 ```
 
-`uv tool install` puts both commands on your `PATH`. To use pip instead, run
+To use pip instead, run
 `python -m pip install git+https://github.com/viseshrp/ado-mcp` in a virtual
 environment.
 
-Check the install:
-
-```bash
-ado-mcp --version
-```
-
-A source install from an untagged commit reports a development version, such
-as `0.0.1.dev<timestamp>`, instead of a release number.
-
-### From PyPI (after publication)
-
-`ado-mcp-server` 0.1.0 has not been published to PyPI yet. Once it is,
-install it with:
-
-```bash
-uv tool install ado-mcp-server
-```
-
-Or, in a virtual environment:
-
-```bash
-python -m pip install ado-mcp-server
-```
+A source install from an untagged commit reports a timestamped development
+version (`.dev<timestamp>`) instead of a release number.
 
 ## Quick start
 
@@ -142,9 +140,9 @@ client's MCP documentation.
   directory is printed by `uv tool dir --bin`. On Windows the file is
   `ado-mcp.exe`, and backslashes in JSON must be doubled.
 - Clients can also run the server through `uvx` without a separate install:
-  use `"command": "uvx"` with
-  `"args": ["--from", "git+https://github.com/viseshrp/ado-mcp", "ado-mcp"]`.
-  After the PyPI release, `ado-mcp-server` can replace the Git URL.
+  use `"command": "uvx"` with `"args": ["--from", "ado-mcp-server", "ado-mcp"]`.
+  To run unreleased source instead, replace `ado-mcp-server` with
+  `git+https://github.com/viseshrp/ado-mcp`.
 - The client configuration file holds your PAT in plain text. Restrict who can
   read it, and never commit it.
 

@@ -93,10 +93,13 @@ screenshots.
 
 ## Releasing
 
-The first release is **0.1.0**. Versions come from Git tags, not a manually
-maintained version constant. Before the first tag, `uv run hatch version`
-reports `0.0.1.dev<TIMESTAMP>`; this is not the first release target.
-An exact, clean `v0.1.0` tag produces package version `0.1.0`.
+The first release was **0.1.0**. Versions come from Git tags, not a manually
+maintained version constant. An exact, clean `vX.Y.Z` tag produces package
+version `X.Y.Z`; an untagged commit reports a timestamped development version
+(`.dev<TIMESTAMP>`), which is not a release target. Before the first tag
+existed, `uv run hatch version` reported `0.0.1.dev<TIMESTAMP>`. The steps
+below use `0.1.1` to illustrate the next patch release; substitute the version
+you are releasing.
 
 1. Configure the GitHub environments `test-pypi` and `pypi`, with
    `TEST_PYPI_TOKEN` and `PYPI_TOKEN` respectively. The tokens need permission
@@ -112,20 +115,20 @@ An exact, clean `v0.1.0` tag produces package version `0.1.0`.
     make test
     make build
     make check-dist
-    uv run python scripts/check_changelog_date.py 0.1.0
+    uv run python scripts/check_changelog_date.py 0.1.1
     ```
 
     The tests are mocked and need no Azure DevOps credentials. Do not run live
     writes as part of releasing. Review the CI matrix results for all supported
     Python versions and operating systems.
 4. Merge the preparation changes to `main` and sync with its upstream.
-   From a clean checkout of `main`, explicitly select the first version:
+   From a clean checkout of `main`, explicitly select the version:
 
     ```bash
-    make tag VERSION=0.1.0
+    make tag VERSION=0.1.1
     ```
 
-    This validates the version and changelog, creates an annotated `v0.1.0`
+    This validates the version and changelog, creates an annotated `v0.1.1`
     tag, and pushes it. It does not update or commit files. Without `VERSION`,
     the helper infers the next patch version from the latest tag; use an
     explicit version for a minor or major release.
