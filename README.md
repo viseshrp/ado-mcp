@@ -107,8 +107,11 @@ version (`.dev<timestamp>`) instead of a release number.
 
 ## Quick start
 
-1. Create a PAT from your user settings in the collection's web portal. A
-   read-only PAT is enough to try the read tools; see
+1. Create a PAT in the collection's web portal: open your profile (avatar)
+   menu, select **Security**, and then select **New Token** on the
+   **Personal access tokens** page. You can also open that page directly at
+   `<collection-url>/_usersSettings/tokens`. Select only the scopes you need,
+   not **Full access**. A read-only PAT is enough to try the read tools; see
    [PAT permissions](https://github.com/viseshrp/ado-mcp/blob/main/README.md#pat-permissions).
 2. Find your collection URL, for example
    `https://ado.example.net/tfs/DefaultCollection`.
@@ -343,7 +346,8 @@ instructions, but they cannot guarantee it, so keep reviewing writes.
 
 ## PAT permissions
 
-Use the least-privileged PAT that covers the tools you call. Scope names
+Use the least-privileged PAT that covers the tools you call, and choose custom
+scopes rather than **Full access**. Scope names
 differ between server releases, and a PAT scope never replaces the user's own
 project and team permissions.
 
